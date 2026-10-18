@@ -55,4 +55,4 @@ Ikon dibuat ulang dengan `python3 tools/make_icons.py` (butuh Pillow).
 ## Lisensi
 MIT, lihat [LICENSE](LICENSE). Font [Pixelify Sans](https://fonts.google.com/specimen/Pixelify+Sans) berlisensi SIL Open Font License 1.1.
 
-Dibuat oleh madebyuloh.
+Dibuat oleh [madebyuloh](https://faquloh.site).

@@ -282,7 +282,7 @@ async function main() {
   c = await until(async () => { const r = await covered(re); return r.host ? r : null; });
   ok("link yang sama dibuka lagi setelah tab terkunci ditutup => tetap terkunci", !!c && c.vis === "hidden", JSON.stringify(c));
   const diffT = await openTab(`http://127.0.0.1:${SITE}/rahasia-lain`); const diff = await conn(diffT.webSocketDebuggerUrl); await sleep(1200);
-  ok("link lain di situs yang sama TIDAK terkunci", !(await covered(diff)).host);
+  ok("halaman lain di situs yang sama (satu aplikasi) ikut terkunci", !!(await until(async () => (await covered(diff)).host)));
   const withHashT = await openTab(`${linkUrl}#bagian`); const withHash = await conn(withHashT.webSocketDebuggerUrl);
   ok("link yang sama dengan #fragment berbeda tetap terkunci", !!(await until(async () => (await covered(withHash)).host ? true : null)));
   const idRe = await chromeTabId(extId, `http://127.0.0.1:${SITE}/rahasia?x=1`);

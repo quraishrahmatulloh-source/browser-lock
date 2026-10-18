@@ -53,7 +53,8 @@ async function pageState(url, tabId) {
 async function redirectToLockPage(tab, { tabScope = false } = {}) {
   const url = tab.url || tab.pendingUrl || "";
   if (!tab.id || isLockPage(url)) return;
-  if (url) await updateMap("redirected", (m) => { if (!m[tab.id]) m[tab.id] = url; });
+  // URL kosong = tab baru yang belum selesai dibuat (Chrome baru dibuka): anggap Tab Baru, supaya tab ini tidak ditutup (dan jendelanya hilang) setelah unlock
+  await updateMap("redirected", (m) => { if (!m[tab.id]) m[tab.id] = url || "chrome://newtab/"; });
   try { await chrome.tabs.update(tab.id, { url: `${LOCK_PAGE}?mode=tab${tabScope ? `&tab=${tab.id}` : ""}` }); } catch { /* tab sudah tertutup */ }
 }
 
@@ -102,7 +103,10 @@ async function finishUnlockUi() {
   await Promise.all(Object.entries(map).map(([id, url]) => chrome.tabs.update(Number(id), { url }).catch(() => {})));
   await closeLockWindow();
   const left = (await chrome.tabs.query({})).filter((t) => isLockPage(t.url) && t.url.includes("mode=tab"));
-  await Promise.all(left.map((t) => chrome.tabs.remove(t.id).catch(() => {})));
+  // sisa tanpa catatan asal ditutup, kecuali itu satu-satunya tab di jendelanya (menutupnya menutup jendela): jadikan Tab Baru
+  const all = await chrome.tabs.query({});
+  await Promise.all(left.map((t) => (all.some((o) => o.windowId === t.windowId && !left.includes(o))
+    ? chrome.tabs.remove(t.id) : chrome.tabs.update(t.id, { url: "chrome://newtab/" })).catch(() => {})));
 }
 
 /** Kunci SATU tab saja. Tab lain tidak disentuh. */

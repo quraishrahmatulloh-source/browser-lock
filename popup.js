@@ -1,7 +1,7 @@
 import { makeT, applyI18n } from "./lib/i18n.js";
 const $ = (id) => document.getElementById(id);
 const send = (msg) => chrome.runtime.sendMessage(msg);
-$("foot").innerHTML = `<b>madebyuloh</b> · v${chrome.runtime.getManifest().version}`;
+$("foot").innerHTML = `<a href="https://faquloh.site" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none"><b>madebyuloh</b></a> · v${chrome.runtime.getManifest().version}`;
 
 async function init() {
   const st = await send({ type: "getState" });

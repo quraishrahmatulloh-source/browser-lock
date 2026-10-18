@@ -18,7 +18,7 @@ document.body.dataset.mode = mode;
 if (embed) document.documentElement.classList.add("embed");
 if (mode === "popup") { document.documentElement.style.width = "380px"; document.querySelector(".page").style.padding = "10px"; }
 attachMeter($("np1"));
-$("foot").innerHTML = `<b>madebyuloh</b> · v${chrome.runtime.getManifest().version}`;
+$("foot").innerHTML = `<a href="https://faquloh.site" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none"><b>madebyuloh</b></a> · v${chrome.runtime.getManifest().version}`;
 
 function setMsg(el, text, kind = "err") { el.textContent = text; el.className = "msg " + (text ? kind : ""); }
 function shake() { const c = $("card"); c.classList.remove("shake"); void c.offsetWidth; c.classList.add("shake"); c.classList.add("bad"); setTimeout(() => c.classList.remove("bad"), 1200); }
