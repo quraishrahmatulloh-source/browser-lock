@@ -11,7 +11,7 @@ test("normalizeHost: bersihkan URL jadi host", () => {
 });
 
 test("normalizeHost: tolak yang tidak valid", () => {
-  for (const bad of ["", "   ", "bukan host!", "a..b", "-a.com", "a-.com", "javascript:alert(1)", "<script>", "x".repeat(300) + ".com", null, undefined]) assert.equal(normalizeHost(bad), null, String(bad));
+  for (const bad of ["", "   ", "bukan host!", "a..b", "-a.com", "a-.com", "javascript:alert(1)", "<script>", "x".repeat(300) + ".com", null, undefined, 5, {}, ["a.com"]]) assert.equal(normalizeHost(bad), null, String(bad));
 });
 
 test("sanitizeRules: buang duplikat/tidak valid, menit default 15, maksimal 50", () => {

@@ -98,3 +98,9 @@ button.link { padding: 0; background: none; border: 0; color: var(--blue); font:
 .alert { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 14px; font-weight: 600; font-size: 14px; color: #fff; background: var(--red); border: 2.5px solid var(--line); border-radius: 12px; }
 .alert button { padding: 4px 10px; font: 700 13px var(--sans); color: var(--text); background: var(--card); border: 2px solid var(--line); border-radius: 8px; cursor: pointer; }
 .dot { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; background: var(--red); }
+
+/* ---- dibenamkan di layar kunci halaman web (iframe) ---- */
+html.embed, html.embed body { background: transparent; }
+html.embed body { min-height: 0; }
+html.embed .page { min-height: 0; padding: 12px; }
+html.embed .card { width: 100%; }

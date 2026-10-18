@@ -133,7 +133,7 @@ async function unlockSite(host) {
   return true;
 }
 
-async function openLockWindow(site = null, tabId = null, tabUrl = "") {
+async function openLockWindow(site = null, tabId = null, tabUrl = "", recover = false) {
   const locked = await isLocked();
   let key = "browser", q = "?mode=window";
   if (!locked) {
@@ -144,6 +144,7 @@ async function openLockWindow(site = null, tabId = null, tabUrl = "") {
   const id = await sess.get("lockWin");
   if (id && (await sess.get("lockWinKey")) === key) { try { await chrome.windows.update(id, { focused: true, drawAttention: true }); return; } catch { /* jendela lama hilang */ } }
   if (id) await closeLockWindow();
+  if (recover) q += "&recover=1";
   const w = await chrome.windows.create({ url: LOCK_PAGE + q, type: "popup", width: 440, height: 660, focused: true });
   await sess.set("lockWin", w.id); await sess.set("lockWinKey", key);
 }
@@ -260,9 +261,10 @@ const handlers = {
       ui: { lang: settings.lang, title: T("ov.title"), sub: T("ov.sub"), btn: T("ov.btn"), hint: T("ov.hint"), siteTitle: T("ov.site.title"), siteSub: T("ov.site.sub"), tabTitle: T("ov.tab.title"), tabSub: T("ov.tab.sub") },
     };
   },
-  async openLockWindow({ site, tab }, sender) { await openLockWindow(typeof site === "string" ? site : null, tab && sender.tab ? sender.tab.id : null, sender.tab ? sender.tab.url : ""); return { ok: true }; },
+  async openLockWindow({ site, tab, recover }, sender) { await openLockWindow(typeof site === "string" ? site : null, tab && sender.tab ? sender.tab.id : null, sender.tab ? sender.tab.url : "", recover === true); return { ok: true }; },
 
-  async unlock({ password, defer, site, tab }) {
+  async unlock({ password, defer, site, tab, tabLock }, sender) {
+    if (tab == null && tabLock && sender.tab) tab = sender.tab.id;     // dibenamkan di tab itu sendiri: tab yang dibuka = tab pengirim
     const r = await vault.tryUnlock(password);
     if (!r.ok && !r.throttled) await updateBadge();
     if (r.ok) await completeUnlock({ site, tab, defer });
@@ -294,7 +296,8 @@ const handlers = {
     await sess.set("bioCh", { challenge, exp: Date.now() + 120_000 });
     return { ok: true, challenge, credId: bio.credId, rpId: EXT_ID };
   },
-  async bioUnlock({ credId, assertion, site, tab, defer }) {
+  async bioUnlock({ credId, assertion, site, tab, tabLock, defer }, sender) {
+    if (tab == null && tabLock && sender.tab) tab = sender.tab.id;
     const bio = await vault.getBio();
     if (!bio) return { ok: false, error: "no-bio" };
     const blocked = await vault.gate();

@@ -1,5 +1,6 @@
 // Skrip konten Browser Lock: saat terkunci, isi halaman DISEMBUNYIKAN (bukan cuma ditutup) dan diberi layar kunci.
-// Password TIDAK diketik di halaman ini (skrip situs bisa mengintip). Tombolnya membuka jendela milik ekstensi.
+// Password diketik langsung di halaman, tapi di dalam iframe milik ekstensi (lintas-origin), jadi skrip situs tidak bisa mengintip.
+// Kalau situs memblokir iframe (CSP), kembali ke tombol yang membuka jendela milik ekstensi.
 (() => {
   if (window.top !== window) return;               // frame lain ikut tersembunyi bersama halaman utamanya
   if (window.__browserLockLoaded) return;
@@ -59,21 +60,17 @@
         button:active{transform:translate(3px,3px);box-shadow:none}
         button:focus-visible{outline:3px solid #5b8def;outline-offset:3px}
         small{color:#777;font-size:12.5px}
+        .frame{width:min(480px,94vw);height:min(620px,72vh);border:0;background:transparent;color-scheme:light;animation:rise .32s cubic-bezier(.2,.9,.3,1.15) both}
         @media (prefers-color-scheme:dark){
           .wrap{background:#1c1b24 radial-gradient(#2b2a36 1.4px,transparent 1.5px) 0 0/22px 22px;color:#f6efe2}
           .card{background:#2a2834;border-color:#000;box-shadow:7px 7px 0 #000}p,small{color:#b5adc4}
+          .frame{color-scheme:dark}
         }
       </style>
       <div class="wrap" role="dialog" aria-modal="true" aria-label="${esc(tabMode ? ui.tabTitle : site ? ui.siteTitle : ui.title)}">
        <div class="col">
         <div class="clock"><div class="time" id="time"></div><div class="date" id="date"></div></div>
-        <div class="card">
-          ${lockSvg()}
-          <h1>${esc(tabMode ? ui.tabTitle : site ? ui.siteTitle : ui.title)}</h1>
-          <p>${esc(tabMode ? ui.tabSub : site ? ui.siteSub : ui.sub)}</p>
-          <button type="button" id="open">${esc(ui.btn)}</button>
-          <small>${esc(ui.hint)}</small>
-        </div>
+        <div id="slot"></div>
        </div>
       </div>`;
     const tick = () => {
@@ -83,11 +80,32 @@
       root.getElementById("date").textContent = d.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" });
     };
     tick(); el.__clock = setInterval(tick, 10_000);
-    const btn = root.getElementById("open");
-    const ask = () => { try { chrome.runtime.sendMessage({ type: "openLockWindow", site: site || null, tab: !!tabMode }); } catch { /* ekstensi sedang dimuat ulang */ } };
-    btn.addEventListener("click", ask);
-    root.addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
-    setTimeout(() => btn.focus(), 0);
+    const slot = root.getElementById("slot");
+    const title = tabMode ? ui.tabTitle : site ? ui.siteTitle : ui.title;
+
+    // Cadangan: kartu dengan tombol yang membuka jendela milik ekstensi (dipakai kalau situs memblokir iframe lewat CSP).
+    const mountFallback = () => {
+      el.setAttribute("data-bl-mode", "fallback");
+      slot.innerHTML = `<div class="card">${lockSvg()}<h1>${esc(title)}</h1><p>${esc(tabMode ? ui.tabSub : site ? ui.siteSub : ui.sub)}</p><button type="button" id="open">${esc(ui.btn)}</button><small>${esc(ui.hint)}</small></div>`;
+      const btn = slot.querySelector("#open");
+      const ask = () => { try { chrome.runtime.sendMessage({ type: "openLockWindow", site: site || null, tab: !!tabMode }); } catch { /* ekstensi sedang dimuat ulang */ } };
+      btn.addEventListener("click", ask);
+      root.addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
+      setTimeout(() => btn.focus(), 0);
+    };
+
+    // Utama: password diketik LANGSUNG di halaman ini, tapi di dalam iframe milik ekstensi (origin chrome-extension://).
+    // Halaman web tidak bisa membaca isi iframe lintas-origin maupun ketikan di dalamnya, jadi password tetap aman dari skrip situs.
+    const url = chrome.runtime.getURL("lock.html") + "?mode=embed" + (site ? `&site=${encodeURIComponent(site)}` : "") + (tabMode ? "&tabLock=1" : "");
+    const frame = document.createElement("iframe");
+    frame.className = "frame"; frame.title = title; frame.allow = "publickey-credentials-get *"; frame.src = url;
+    el.setAttribute("data-bl-mode", "pending");
+    slot.appendChild(frame);
+    let ready = false;
+    const onMsg = (e) => { if (e.source === frame.contentWindow && e.data === "bl-ready") { ready = true; el.setAttribute("data-bl-mode", "inline"); frame.focus(); } };
+    window.addEventListener("message", onMsg);
+    el.__cleanup = () => window.removeEventListener("message", onMsg);
+    setTimeout(() => { if (!ready && el.isConnected !== false && slot.contains(frame)) { window.removeEventListener("message", onMsg); frame.remove(); mountFallback(); } }, 2500);
     return el;
   }
 
@@ -117,7 +135,7 @@
   function hide() {
     locked = false;
     if (observer) { observer.disconnect(); observer = null; }
-    if (host) { clearInterval(host.__clock); host.remove(); host = null; hostSite = undefined; hostKey = undefined; }
+    if (host) { clearInterval(host.__clock); if (host.__cleanup) host.__cleanup(); host.remove(); host = null; hostSite = undefined; hostKey = undefined; }
     hider.remove();
     if (document.body && bodyWasInert !== null) document.body.inert = bodyWasInert;
     bodyWasInert = null;

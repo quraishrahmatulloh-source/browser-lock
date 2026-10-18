@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const EXT = process.env.EXT_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");   // EXT_DIR: uji isi ZIP yang sudah diekstrak
 const CHROME = process.env.CHROME_BIN;
 if (!CHROME) { console.error("Set CHROME_BIN ke Chrome for Testing"); process.exit(2); }
-const PORT = 9350, SITE = 8765;
+let PORT = 9350; const SITE = 8765;
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "bl-e2e-"));
 let pass = 0, fail = 0, chrome = null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -18,7 +18,7 @@ const ok = (name, cond, extra = "") => { cond ? pass++ : fail++; console.log(`${
 async function until(fn, ms = 8000, step = 150) { const t = Date.now(); for (;;) { try { const v = await fn(); if (v) return v; } catch {} if (Date.now() - t > ms) return null; await sleep(step); } }
 
 // ---- situs uji ----
-const site = http.createServer((req, res) => { res.setHeader("content-type", "text/html"); res.end(`<!doctype html><title>Halaman Uji</title><h1 id="x">isi rahasia</h1><input id="q">`); }).listen(SITE);
+const site = http.createServer((req, res) => { res.setHeader("content-type", "text/html"); if (req.url.startsWith("/csp")) res.setHeader("Content-Security-Policy", "frame-src 'none'; child-src 'none'"); res.end(`<!doctype html><title>Halaman Uji</title><h1 id="x">isi rahasia</h1><input id="q">`); }).listen(SITE);
 
 // ---- CDP ----
 const jget = async (p, init) => (await fetch(`http://127.0.0.1:${PORT}${p}`, init)).json();
@@ -56,7 +56,7 @@ const submit = (c, sel) => c.ev(`document.querySelector(${JSON.stringify(sel)}).
 const text = (c, sel) => c.ev(`document.querySelector(${JSON.stringify(sel)})?.textContent || ''`);
 const visible = (c, sel) => c.ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)});return !!e && !e.classList.contains('hidden') && getComputedStyle(e).display!=='none'})()`);
 const send = (c, msg) => c.ev(`chrome.runtime.sendMessage(${JSON.stringify(msg)})`);
-const covered = (c) => c.ev(`({host: !!document.querySelector('[data-browser-lock]'), vis: getComputedStyle(document.documentElement).visibility, title: document.title})`);
+const covered = async (c) => { for (let i = 0; i < 4; i++) { const r = await c.ev(`({host: !!document.querySelector('[data-browser-lock]'), vis: getComputedStyle(document.documentElement).visibility, title: document.title})`); if (r) return r; await sleep(300); } throw new Error("covered: halaman tidak menjawab"); };
 
 // kirim pesan lewat tab halaman ekstensi baru (ditutup lagi setelahnya)
 async function ext(extId, msg) {
@@ -76,6 +76,22 @@ async function extEval(extId, expr) {
   try { return await c.ev(expr); } finally { c.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${t.id}`).catch(() => {}); }
 }
 const chromeTabId = (extId, urlPattern) => extEval(extId, `chrome.tabs.query({ url: ${JSON.stringify(urlPattern)} }).then((t) => t[0] && t[0].id)`);
+
+// ketik lewat input sungguhan ke frame yang sedang fokus (seperti pengguna), lalu Enter
+async function typeInto(c, text) {
+  await c.send("Page.bringToFront");
+  await c.send("Input.insertText", { text });
+  await c.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
+  await c.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+}
+const blMode = (c) => c.ev("document.querySelector('[data-browser-lock]')?.getAttribute('data-bl-mode')");
+
+// iframe lintas-origin tidak muncul di Page.getFrameTree; ia target terpisah di tingkat browser
+async function browserTargets() {
+  const v = await jget("/json/version"); const ws = new WebSocket(v.webSocketDebuggerUrl); await new Promise((r) => (ws.onopen = r));
+  const res = await new Promise((r) => { ws.onmessage = (m) => r(JSON.parse(m.data)); ws.send(JSON.stringify({ id: 1, method: "Target.getTargets" })); });
+  ws.close(); return res.result.targetInfos;
+}
 
 const noLockTabs = () => until(async () => !(await list()).some((t) => t.type === "page" && t.url.includes("/lock.html")), 8000);
 
@@ -137,6 +153,39 @@ async function main() {
     ok("skrip konten boleh tanya status, tanpa membocorkan hash", stt.locked === true && !JSON.stringify(stt).match(/hash|salt/), JSON.stringify(stt));
   }
 
+  // ---- 5b. password diketik LANGSUNG di halaman (iframe milik ekstensi), tanpa jendela popup ----
+  const inl = await until(async () => ((await blMode(page)) === "inline" ? "inline" : null), 8000);
+  ok("layar kunci memuat kotak password langsung di halaman (mode inline)", inl === "inline", String(await blMode(page)));
+  ok("iframe milik ekstensi (chrome-extension://) ada di halaman", (await browserTargets()).some((t) => t.type === "iframe" && t.url.startsWith(`chrome-extension://${extId}/lock.html?mode=embed`)));
+  await sleep(800);
+  const winsBefore = (await list()).filter((t) => t.url.includes("mode=window")).length;
+  await page.ev(`window.__keys = []; for (const t of ["keydown", "keypress", "keyup", "input", "beforeinput", "paste", "compositionupdate"]) { addEventListener(t, (e) => __keys.push(t + ":" + (e.key || e.data || "")), true); document.addEventListener(t, (e) => __keys.push("doc-" + t), true); } 1`);
+  await typeInto(page, "salah-inline");
+  await sleep(1000);
+  ok("password salah di kotak inline tidak membuka", (await covered(page)).host === true);
+  ok("pengintai di halaman TIDAK melihat satu ketikan pun (aman dari keylogger situs)", (await page.ev("JSON.stringify(window.__keys)")) === "[]", await page.ev("JSON.stringify(window.__keys)"));
+  await typeInto(page, "rahasia-satu-1");
+  c = await until(async () => { const r = await covered(page); return !r.host ? r : null; }, 8000);
+  ok("password benar diketik langsung di halaman membuka tab", !!c && c.vis === "visible" && c.title === "Halaman Uji", JSON.stringify(c));
+  ok("pengintai tetap tidak melihat ketikan password benar", (await page.ev("JSON.stringify(window.__keys)")) === "[]", await page.ev("JSON.stringify(window.__keys)"));
+  ok("tidak ada jendela popup yang dibuka untuk memasukkan password", (await list()).filter((t) => t.url.includes("mode=window")).length === winsBefore);
+  // kunci lagi untuk langkah berikutnya
+  await ext(extId, { type: "lockNow" });
+  await until(async () => (await covered(page)).host);
+  // situs dengan CSP frame-src 'none': iframe ekstensi yang dipasang skrip konten TIDAK diblokir (terukur di Chrome 155)
+  const cspT = await openTab(`http://127.0.0.1:${SITE}/csp`);
+  const csp = await conn(cspT.webSocketDebuggerUrl);
+  const fb = await until(async () => ((await blMode(csp)) === "inline" ? "inline" : null), 9000);
+  ok("situs ber-CSP frame-src 'none' tetap memuat kotak password inline", fb === "inline", String(await blMode(csp)));
+  ok("halaman CSP tetap tertutup", (await covered(csp)).vis === "hidden");
+  csp.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${cspT.id}`).catch(() => {});
+  // 'Lupa password?' dari layar kunci membuka jendela pemulihan
+  await ext(extId, { type: "openLockWindow", recover: true });
+  const recWin = await target((t) => t.url.includes("mode=window") && t.url.includes("recover=1"));
+  ok("tombol lupa password membuka jendela dengan form pemulihan", !!recWin);
+  if (recWin) { const rw = await conn(recWin.webSocketDebuggerUrl); ok("form pemulihan langsung terbuka", !!(await until(async () => visible(rw, "#recoverForm")))); rw.close(); }
+  await fetch(`http://127.0.0.1:${PORT}/json/close/${recWin?.id}`).catch(() => {});
+
   // ---- 6. tab chrome:// tidak bisa ditutup overlay: dialihkan ke halaman kunci ----
   const ntp = await openTab("chrome://newtab");
   const ntpLock = await target((t) => t.id === ntp.id && t.url.includes(`${extId}/lock.html`));
@@ -160,10 +209,10 @@ async function main() {
   const swc = await conn(sw.webSocketDebuggerUrl);
   const badge = () => swc.ev("chrome.action.getBadgeText({})");
   let att = await ext(extId, { type: "getAttempts" });
-  ok("satu percobaan salah tercatat (jenis password, belum dilihat)", att.log.length === 1 && att.log[0].k === "password" && att.unseen === 1, JSON.stringify(att));
-  ok("lencana ikon menampilkan jumlah percobaan gagal", (await badge()) === "1", String(await badge()));
+  ok("dua percobaan salah tercatat (jenis password, belum dilihat)", att.log.length === 2 && att.log.every((e) => e.k === "password") && att.unseen === 2, JSON.stringify(att));
+  ok("lencana ikon menampilkan jumlah percobaan gagal", (await badge()) === "2", String(await badge()));
   await ext(extId, { type: "markSeen" });
-  ok("lencana hilang setelah ditandai dilihat, catatan tetap ada", (await badge()) === "" && (await ext(extId, { type: "getAttempts" })).log.length === 1);
+  ok("lencana hilang setelah ditandai dilihat, catatan tetap ada", (await badge()) === "" && (await ext(extId, { type: "getAttempts" })).log.length === 2);
 
   // ---- 7c. kunci per situs ----
   await ext(extId, { type: "setSettings", patch: { siteLocks: [{ host: "127.0.0.1", minutes: 15 }] } });
@@ -197,6 +246,22 @@ async function main() {
   await ext(extId, { type: "unlock", password: "rahasia-satu-1", tab: idA });
   c = await until(async () => { const r = await covered(page); return !r.host ? r : null; });
   ok("kunci tab: password benar membuka tab itu saja", !!c && c.vis === "visible" && !(await covered(tabOther)).host, JSON.stringify(c));
+  // password diketik langsung di tab yang dikunci sendiri: hanya tab itu yang terbuka
+  await ext(extId, { type: "lockTab", tabId: idA });
+  await until(async () => (await covered(page)).host);
+  await until(async () => ((await blMode(page)) === "inline" ? 1 : null), 8000); await sleep(800);
+  await typeInto(page, "rahasia-satu-1");
+  c = await until(async () => { const r = await covered(page); return !r.host ? r : null; }, 8000);
+  ok("kunci tab: password diketik langsung di tab membuka tab itu", !!c && c.vis === "visible" && !(await covered(tabOther)).host, JSON.stringify(c));
+  // password diketik langsung untuk situs yang dikunci per situs
+  await ext(extId, { type: "setSettings", patch: { siteLocks: [{ host: "127.0.0.1", minutes: 15 }] } });
+  await until(async () => (await covered(page)).host);
+  await until(async () => ((await blMode(page)) === "inline" ? 1 : null), 8000); await sleep(800);
+  await typeInto(page, "rahasia-satu-1");
+  c = await until(async () => { const r = await covered(page); return !r.host ? r : null; }, 8000);
+  ok("kunci per situs: password diketik langsung di halaman membuka situs itu", !!c && c.vis === "visible", JSON.stringify(c));
+  if (!c) console.log("  [diagnosa situs] mode:", await blMode(page), "| session:", await swc.ev("chrome.storage.session.get(null).then((s) => JSON.stringify({ lockedTabs: s.lockedTabs, lockedLinks: s.lockedLinks, siteOk: s.siteOk, unlocked: s.unlocked }))"), "| attempts:", JSON.stringify(await ext(extId, { type: "getAttempts" })));
+  await ext(extId, { type: "setSettings", patch: { siteLocks: [] } });
   // kunci tab lalu kunci semua lalu buka browser: kunci tab ikut dilepas
   await ext(extId, { type: "lockTab", tabId: idA });
   await until(async () => (await covered(page)).host);
@@ -317,7 +382,7 @@ async function main() {
   await ext(extId, { type: "lockNow" });
   await until(async () => (await covered(page)).host);
   await ext(extId, { type: "openLockWindow" });      // tidak ada tab ekstensi yang tersisa, jadi minta jendela kunci
-  const lt2 = await target((t) => t.url.includes(`${extId}/lock.html`));
+  const lt2 = await target((t) => t.url.includes(`${extId}/lock.html?mode=window`) && !t.url.includes("recover=1"));
   const l3 = await conn(lt2.webSocketDebuggerUrl);
   await fill(l3, "#pw", "rahasia-satu-1"); await submit(l3, "#unlockForm");
   ok("password lama tidak berlaku lagi setelah pemulihan", /salah/i.test((await until(async () => { const t = await text(l3, "#msg"); return /salah/i.test(t) ? t : null; })) || ""));
@@ -350,7 +415,29 @@ async function main() {
   await stop();
 }
 
-try { await main(); } catch (e) { fail++; console.log("FAIL (exception)", e.stack || e); }
+// ---- varian: iframe tidak bisa dimuat (tanpa web_accessible_resources) => kembali ke tombol cadangan ----
+async function fallbackVariant() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bl-nowar-"));
+  fs.cpSync(EXT, dir, { recursive: true, filter: (p) => !/[\\/](tests|\.git|tools|store)([\\/]|$)|\.zip$/.test(p) });
+  const mf = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8")); delete mf.web_accessible_resources;
+  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(mf));
+  const prof2 = fs.mkdtempSync(path.join(os.tmpdir(), "bl-nowar-prof-"));
+  chrome = spawn(CHROME, ["--headless=new", `--remote-debugging-port=${PORT}`, `--user-data-dir=${prof2}`, "--no-first-run", "--no-default-browser-check", `--load-extension=${dir}`, "about:blank"], { stdio: "ignore" });
+  const sw = await ready();
+  ok("[varian tanpa iframe] ekstensi termuat", !!sw);
+  const extId = new URL(sw.url).host;
+  const optT = await target((t) => t.url.includes(`${extId}/options.html`));
+  const o = await conn(optT.webSocketDebuggerUrl);
+  await o.ev(`chrome.runtime.sendMessage({ type: "setInitialPassword", password: "rahasia-satu-1" })`);
+  const pT = await openTab(`http://127.0.0.1:${SITE}/`); const p = await conn(pT.webSocketDebuggerUrl); await sleep(1000);
+  await o.ev(`chrome.runtime.sendMessage({ type: "lockNow" })`);
+  const m = await until(async () => ((await blMode(p)) === "fallback" ? "fallback" : null), 10000);
+  ok("[varian tanpa iframe] iframe tidak bisa dimuat => kartu cadangan dengan tombol", m === "fallback", String(await blMode(p)));
+  ok("[varian tanpa iframe] halaman tetap tertutup dan tersembunyi", (await covered(p)).vis === "hidden");
+  await stop(); fs.rmSync(dir, { recursive: true, force: true });
+}
+
+try { await main(); await fallbackVariant(); } catch (e) { fail++; console.log("FAIL (exception)", e.stack || e); }
 await stop(); site.close(); fs.rmSync(profile, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

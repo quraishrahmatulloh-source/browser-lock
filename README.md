@@ -24,7 +24,7 @@ Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 - **Touch ID**: ekstensi tidak pernah menyentuh sidik jari. Sistem operasi yang memverifikasi, ekstensi cuma memeriksa tanda tangan WebAuthn (ES256) dengan tantangan sekali pakai, wajib ada verifikasi pengguna (UV), dan percobaan palsu dicatat serta dihitung ke pembatasan.
 - Password disimpan sebagai **PBKDF2-SHA256 (250.000 iterasi)** dengan salt acak, tidak pernah sebagai teks asli.
 - Percobaan salah dibatasi: 5 gratis, lalu tunggu 30 dtk, 1 mnt, 2 mnt, … maksimal 15 mnt. Berlaku juga untuk kode pemulihan.
-- **Password tidak diketik di halaman web.** Layar kunci di halaman cuma tombol; password diketik di jendela milik ekstensi, jadi skrip situs tidak bisa mengintip ketikan.
+- **Password diketik langsung di halaman yang terkunci, tapi aman dari skrip situs.** Kotaknya ada di dalam iframe milik ekstensi (origin `chrome-extension://`), jadi skrip di situs tidak bisa membaca isinya maupun ketikannya (diuji dengan pengintai tombol di halaman: nol ketikan terbaca). Kalau iframe tidak bisa dimuat, kembali ke tombol yang membuka jendela milik ekstensi. "Lupa password?" selalu membuka jendela, supaya kode pemulihan baru tidak hilang saat layar kunci menutup.
 - Isi halaman **disembunyikan** (`visibility: hidden`), bukan sekadar ditutup, dan ditandai `inert` supaya tidak bisa difokus dengan Tab.
 - Aksi sensitif (buka kunci, ganti password, pengaturan) hanya diterima dari halaman ekstensi ini. Pesan dari skrip di halaman web ditolak.
 - Tidak ada permintaan jaringan, analitik, atau pelacakan. Kodenya semua di folder ini.
@@ -40,7 +40,7 @@ Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 ## Uji
 ```bash
 node --test tests/*.test.mjs                            # 35 uji logika: password, kunci per situs, WebAuthn (Node 20+)
-CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 73 uji end-to-end di Chrome sungguhan (~2 menit)
+CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 89 uji end-to-end di Chrome sungguhan (~2 menit)
 ```
 Uji end-to-end butuh [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/), karena Chrome biasa (137+) menonaktifkan `--load-extension`.
 Ikon dibuat ulang dengan `python3 tools/make_icons.py` (butuh Pillow).
