@@ -64,7 +64,14 @@ async function redirectToLockPage(tab, { tabScope = false } = {}) {
 async function refreshTab(tab, { redirect = false, tabScope = false } = {}) {
   if (!tab.id || isLockPage(tab.url || tab.pendingUrl)) return;
   try { await chrome.tabs.sendMessage(tab.id, { type: "refresh" }, { frameId: 0 }); }
-  catch { if (redirect) await redirectToLockPage(tab, { tabScope }); }
+  catch {
+    if (!redirect) return;
+    // Saat Chrome baru dibuka, tab pulihan masih memuat / belum dimuat. Skrip konten halaman web akan menutup dirinya sendiri begitu
+    // jalan (document_start), jadi jangan dialihkan (tab hilang state-nya). onUpdated mengalihkan lagi kalau ternyata halaman tak bisa ditutup.
+    const url = tab.url || tab.pendingUrl || "";
+    if (/^(https?|ftp):/.test(url) && tab.status !== "complete") return;
+    await redirectToLockPage(tab, { tabScope });
+  }
 }
 
 async function refreshAll({ redirect = false } = {}) {
@@ -149,6 +156,12 @@ async function openLockWindow(site = null, tabId = null, tabUrl = "", recover = 
   await sess.set("lockWin", w.id); await sess.set("lockWinKey", key);
 }
 
+/** Saat Chrome baru dibuka jendela utama kadang belum ada; membuat popup lebih dulu membuatnya tersembunyi / gagal. Tunggu sebentar. */
+async function openLockWindowWhenReady() {
+  for (let i = 0; i < 10 && !(await chrome.windows.getAll({ windowTypes: ["normal"] })).length; i++) await new Promise((r) => setTimeout(r, 300));
+  try { await openLockWindow(); } catch { await new Promise((r) => setTimeout(r, 500)); await openLockWindow().catch(() => {}); }
+}
+
 // ---------- catatan percobaan gagal + lencana ----------
 async function updateBadge() {
   const { unseen } = await vault.getAttempts();
@@ -205,7 +218,7 @@ function bootCheck() {
   return (booting ||= (async () => {
     if (await sess.get("booted")) return;
     await sess.set("booted", true);
-    if (await isLocked()) { await refreshAll({ redirect: true }); await openLockWindow(); }   // Chrome baru dibuka: minta password langsung
+    if (await isLocked()) { await refreshAll({ redirect: true }); await openLockWindowWhenReady(); }   // Chrome baru dibuka: minta password langsung
   })());
 }
 chrome.runtime.onStartup.addListener(() => { applyIdleSettings(); bootCheck(); updateBadge(); });
