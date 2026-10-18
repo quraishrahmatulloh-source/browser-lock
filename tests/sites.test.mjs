@@ -45,14 +45,14 @@ test("isSiteLocked: terkunci sampai dibuka, kadaluarsa menurut menit, null = sam
   assert.equal(expiryFor(rules[1], now), null);
 });
 
-test("normalizeLink: link yang sama dikenali walau beda #fragment, huruf host, atau garis miring akhir domain", () => {
+test("normalizeLink: situs web = satu aplikasi (protokol + host); chrome:// per halaman", () => {
   const a = normalizeLink("https://Example.com/akun?id=1#bagian-2");
-  assert.equal(a, "https://example.com/akun?id=1");
-  assert.equal(normalizeLink("https://example.com/akun?id=1"), a);
+  assert.equal(a, "https://example.com");
+  assert.equal(normalizeLink("https://example.com/lain?id=2"), a);             // halaman lain di situs yang sama = aplikasi yang sama
   assert.equal(normalizeLink("https://example.com"), normalizeLink("https://example.com/"));
-  assert.notEqual(normalizeLink("https://example.com/akun?id=2"), a);          // query beda = link beda
-  assert.notEqual(normalizeLink("https://example.com/lain?id=1"), a);          // path beda = link beda
-  assert.notEqual(normalizeLink("http://example.com/akun?id=1"), a);           // protokol beda = link beda
+  assert.notEqual(normalizeLink("https://other.com/akun?id=1"), a);            // host beda = situs beda
+  assert.notEqual(normalizeLink("http://example.com/akun?id=1"), a);           // protokol beda = situs beda
   assert.equal(normalizeLink("chrome://version/"), "chrome://version/");
+  assert.notEqual(normalizeLink("chrome://version/"), normalizeLink("chrome://settings/"));
   for (const bad of ["", "bukan url", "javascript:alert(1)", "data:text/html,x", null, undefined]) assert.equal(normalizeLink(bad), null, String(bad));
 });
