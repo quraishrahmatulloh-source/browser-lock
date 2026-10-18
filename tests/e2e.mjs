@@ -205,6 +205,30 @@ async function main() {
   await ext(extId, { type: "unlock", password: "rahasia-satu-1" });
   c = await until(async () => { const r = await covered(page); return !r.host && !(await covered(tabOther)).host ? r : null; });
   ok("membuka kunci browser juga melepas kunci per tab", !!c);
+  // kunci tab menempel ke LINK: tab ditutup lalu link yang sama dibuka lagi => tetap terkunci
+  const linkUrl = `http://127.0.0.1:${SITE}/rahasia?x=1`;
+  const lkT = await openTab(linkUrl); const lk = await conn(lkT.webSocketDebuggerUrl); await sleep(1200);
+  const idL = await chromeTabId(extId, `http://127.0.0.1:${SITE}/rahasia*`);
+  await ext(extId, { type: "lockTab", tabId: idL });
+  await until(async () => (await covered(lk)).host);
+  lk.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${lkT.id}`).catch(() => {});   // tab dikunci lalu DITUTUP
+  await sleep(600);
+  const reT = await openTab(linkUrl); const re = await conn(reT.webSocketDebuggerUrl);
+  c = await until(async () => { const r = await covered(re); return r.host ? r : null; });
+  ok("link yang sama dibuka lagi setelah tab terkunci ditutup => tetap terkunci", !!c && c.vis === "hidden", JSON.stringify(c));
+  const diffT = await openTab(`http://127.0.0.1:${SITE}/rahasia-lain`); const diff = await conn(diffT.webSocketDebuggerUrl); await sleep(1200);
+  ok("link lain di situs yang sama TIDAK terkunci", !(await covered(diff)).host);
+  const withHashT = await openTab(`${linkUrl}#bagian`); const withHash = await conn(withHashT.webSocketDebuggerUrl);
+  ok("link yang sama dengan #fragment berbeda tetap terkunci", !!(await until(async () => (await covered(withHash)).host ? true : null)));
+  const idRe = await chromeTabId(extId, `http://127.0.0.1:${SITE}/rahasia?x=1`);
+  await ext(extId, { type: "unlock", password: "rahasia-satu-1", tab: idRe });
+  c = await until(async () => { const r = await covered(re); return !r.host ? r : null; });
+  ok("membuka tab itu dengan password melepas kunci link", !!c && c.vis === "visible", JSON.stringify(c));
+  const again = await openTab(linkUrl); const ag = await conn(again.webSocketDebuggerUrl); await sleep(1200);
+  ok("setelah dibuka, link yang sama tidak terkunci lagi", !(await covered(ag)).host);
+  for (const x of [re, diff, withHash, ag]) x.close();
+  for (const x of [reT, diffT, withHashT, again]) await fetch(`http://127.0.0.1:${PORT}/json/close/${x.id}`).catch(() => {});
+
   // tab chrome:// yang dikunci sendirian dialihkan ke layar kunci, tab lain tetap terbuka
   const ntp2 = await openTab("chrome://version"); await sleep(1500);   // halaman chrome:// yang unik, supaya jelas tab mana yang dikunci
   const idN = await chromeTabId(extId, "chrome://version/*");

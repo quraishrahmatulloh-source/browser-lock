@@ -2,7 +2,7 @@
 //  - storage.local   : hash password, kode pemulihan, pengaturan, catatan gagal, kunci publik Touch ID
 //  - storage.session : "unlocked", izin buka per situs, tantangan Touch ID (hilang saat Chrome ditutup => selalu terkunci saat dibuka lagi)
 import { Vault } from "./lib/auth.js";
-import { isSiteLocked, expiryFor, matchRule } from "./lib/sites.js";
+import { isSiteLocked, expiryFor, matchRule, normalizeLink } from "./lib/sites.js";
 import { verifyAssertion, bytesToB64u } from "./lib/webauthn.js";
 import { makeT } from "./lib/i18n.js";
 
@@ -31,11 +31,18 @@ const isUnlocked = async () => !!(await sess.get("unlocked"));
 const isLocked = async () => (await vault.hasPassword()) && !(await isUnlocked());
 
 // ---------- status per halaman ----------
+/** Tab ini terkunci sendiri, entah karena id tabnya, atau karena linknya sama dengan link yang dikunci (walau tab lamanya sudah ditutup). */
+async function tabLockedFor(tabId, url) {
+  if (tabId != null && ((await sess.get("lockedTabs")) || {})[tabId]) return true;
+  const link = normalizeLink(url);
+  return !!link && !!((await sess.get("lockedLinks")) || {})[link];
+}
+
 /** Apakah halaman (URL) ini harus tertutup sekarang: karena browser terkunci, atau karena aturan kunci per situs. */
 async function pageState(url, tabId) {
   if (await isLocked()) return { locked: true, site: null, tab: false };
   if (!(await vault.hasPassword())) return { locked: false, site: null, tab: false };
-  if (tabId != null && ((await sess.get("lockedTabs")) || {})[tabId]) return { locked: true, site: null, tab: true };   // satu tab dikunci sendiri
+  if (await tabLockedFor(tabId, url)) return { locked: true, site: null, tab: true };   // satu tab / satu link dikunci sendiri
   const { siteLocks } = await vault.getSettings();
   const rule = isSiteLocked(url, siteLocks, (await sess.get("siteOk")) || {});
   return rule ? { locked: true, site: rule.host, tab: false } : { locked: false, site: null, tab: false };
@@ -80,7 +87,7 @@ async function closeLockWindow() {
 }
 
 /** Tandai terbuka dan buka tutup di semua tab. */
-async function markUnlocked() { await sess.set("unlocked", true); await clearMap("lockedTabs"); await refreshAll(); }   // buka kunci browser = pemilik terbukti, kunci per tab ikut dilepas
+async function markUnlocked() { await sess.set("unlocked", true); await clearMap("lockedTabs"); await clearMap("lockedLinks"); await refreshAll(); }   // buka kunci browser = pemilik terbukti, kunci per tab ikut dilepas
 
 /** Bereskan layar kunci: kembalikan tab yang tadi dialihkan, tutup jendela kunci. Dipisah supaya kode pemulihan sempat dibaca. */
 async function finishUnlockUi() {
@@ -96,6 +103,8 @@ async function lockTab(tabId) {
   if (!(await vault.hasPassword()) || (await isLocked())) return false;
   let tab; try { tab = await chrome.tabs.get(tabId); } catch { return false; }
   await updateMap("lockedTabs", (m) => { m[tabId] = true; });
+  const link = normalizeLink(tab.url || tab.pendingUrl);
+  if (link) await updateMap("lockedLinks", (m) => { m[link] = true; });   // link ini tetap terkunci walau tabnya ditutup
   await refreshTab(tab, { redirect: true, tabScope: true });
   return true;
 }
@@ -104,6 +113,10 @@ async function lockTab(tabId) {
 async function unlockTab(tabId) {
   await updateMap("lockedTabs", (m) => { delete m[tabId]; });
   const orig = await updateMap("redirected", (m) => { const o = m[tabId]; delete m[tabId]; return o; });
+  let url = orig; if (!url) { try { url = (await chrome.tabs.get(tabId)).url; } catch { /* tab sudah hilang */ } }
+  const link = normalizeLink(url);
+  if (link) await updateMap("lockedLinks", (m) => { delete m[link]; });   // membuka satu tab melepas kunci link itu
+  await refreshAll();
   if (orig) await chrome.tabs.update(tabId, { url: orig }).catch(() => {});
   else await chrome.tabs.sendMessage(tabId, { type: "refresh" }, { frameId: 0 }).catch(() => {});
   await closeLockWindow();
@@ -120,11 +133,11 @@ async function unlockSite(host) {
   return true;
 }
 
-async function openLockWindow(site = null, tabId = null) {
+async function openLockWindow(site = null, tabId = null, tabUrl = "") {
   const locked = await isLocked();
   let key = "browser", q = "?mode=window";
   if (!locked) {
-    if (tabId != null && ((await sess.get("lockedTabs")) || {})[tabId]) { key = `tab:${tabId}`; q = `?mode=window&tab=${tabId}`; }
+    if (tabId != null && (await tabLockedFor(tabId, tabUrl))) { key = `tab:${tabId}`; q = `?mode=window&tab=${tabId}`; }
     else if (site && (await vault.getSettings()).siteLocks.some((r) => r.host === site)) { key = `site:${site}`; q = `?mode=window&site=${encodeURIComponent(site)}`; }
     else return;
   }
@@ -199,9 +212,14 @@ chrome.runtime.onStartup.addListener(() => { applyIdleSettings(); bootCheck(); u
 // tab baru / berpindah halaman saat terkunci: pastikan tertutup
 chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
   if (info.status !== "complete" && !info.url) return;
-  if (await isLocked()) await refreshTab({ ...tab, id: tabId }, { redirect: true });
+  if (await isLocked()) { await refreshTab({ ...tab, id: tabId }, { redirect: true }); return; }
+  // link yang pernah dikunci dibuka lagi di tab baru: tertutup juga (halaman chrome:// dialihkan ke layar kunci khusus tab itu)
+  if (await tabLockedFor(tabId, tab.url || tab.pendingUrl)) await refreshTab({ ...tab, id: tabId }, { redirect: true, tabScope: true });
 });
-chrome.tabs.onCreated.addListener(async (tab) => { if (await isLocked()) await refreshTab(tab, { redirect: true }); });
+chrome.tabs.onCreated.addListener(async (tab) => {
+  if (await isLocked()) await refreshTab(tab, { redirect: true });
+  else if (await tabLockedFor(tab.id, tab.pendingUrl || tab.url)) await refreshTab(tab, { redirect: true, tabScope: true });
+});
 chrome.windows.onRemoved.addListener(async (id) => { if ((await sess.get("lockWin")) === id) await chrome.storage.session.remove(["lockWin", "lockWinKey"]); });
 
 chrome.commands.onCommand.addListener(async (cmd) => {
@@ -242,7 +260,7 @@ const handlers = {
       ui: { title: T("ov.title"), sub: T("ov.sub"), btn: T("ov.btn"), hint: T("ov.hint"), siteTitle: T("ov.site.title"), siteSub: T("ov.site.sub"), tabTitle: T("ov.tab.title"), tabSub: T("ov.tab.sub") },
     };
   },
-  async openLockWindow({ site, tab }, sender) { await openLockWindow(typeof site === "string" ? site : null, tab && sender.tab ? sender.tab.id : null); return { ok: true }; },
+  async openLockWindow({ site, tab }, sender) { await openLockWindow(typeof site === "string" ? site : null, tab && sender.tab ? sender.tab.id : null, sender.tab ? sender.tab.url : ""); return { ok: true }; },
 
   async unlock({ password, defer, site, tab }) {
     const r = await vault.tryUnlock(password);

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeHost, sanitizeRules, matchRule, isSiteLocked, expiryFor } from "../lib/sites.js";
+import { normalizeHost, sanitizeRules, matchRule, isSiteLocked, expiryFor, normalizeLink } from "../lib/sites.js";
 
 test("normalizeHost: bersihkan URL jadi host", () => {
   assert.equal(normalizeHost("https://www.Mail.Google.com/inbox?x=1#a"), "mail.google.com");
@@ -43,4 +43,16 @@ test("isSiteLocked: terkunci sampai dibuka, kadaluarsa menurut menit, null = sam
   assert.equal(isSiteLocked("https://mail.com", rules, { "mail.com": null }, now), null);        // sampai Chrome ditutup
   assert.equal(expiryFor(rules[0], now), now + 15 * 60_000);
   assert.equal(expiryFor(rules[1], now), null);
+});
+
+test("normalizeLink: link yang sama dikenali walau beda #fragment, huruf host, atau garis miring akhir domain", () => {
+  const a = normalizeLink("https://Example.com/akun?id=1#bagian-2");
+  assert.equal(a, "https://example.com/akun?id=1");
+  assert.equal(normalizeLink("https://example.com/akun?id=1"), a);
+  assert.equal(normalizeLink("https://example.com"), normalizeLink("https://example.com/"));
+  assert.notEqual(normalizeLink("https://example.com/akun?id=2"), a);          // query beda = link beda
+  assert.notEqual(normalizeLink("https://example.com/lain?id=1"), a);          // path beda = link beda
+  assert.notEqual(normalizeLink("http://example.com/akun?id=1"), a);           // protokol beda = link beda
+  assert.equal(normalizeLink("chrome://version/"), "chrome://version/");
+  for (const bad of ["", "bukan url", "javascript:alert(1)", "data:text/html,x", null, undefined]) assert.equal(normalizeLink(bad), null, String(bad));
 });

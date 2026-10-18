@@ -6,7 +6,7 @@ Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 ## Fitur
 - **Terkunci setiap Chrome dibuka.** Semua tab disembunyikan dan jendela kunci muncul. Sesi tidak bertahan setelah Chrome ditutup.
 - **Kunci otomatis** saat komputer tidak dipakai (1 menit sampai 1 jam) dan saat layar komputer dikunci.
-- **Kunci semua** atau **kunci satu tab saja** (tab lain tetap terbuka): tombol di popup, atau `⌘/Ctrl+Shift+L` (semua) dan `⌘/Ctrl+Shift+Y` (tab ini).
+- **Kunci semua** atau **kunci satu tab saja** (tab lain tetap terbuka; kunci menempel ke link, jadi link yang sama dibuka lagi setelah tab ditutup tetap terkunci): tombol di popup, atau `⌘/Ctrl+Shift+L` (semua) dan `⌘/Ctrl+Shift+Y` (tab ini).
 - **Touch ID / sidik jari** (opsional, WebAuthn). Password tetap jadi cadangan.
 - **Kunci per situs**: bank atau email minta password lagi walau Chrome terbuka, kedaluwarsa tiap 5/15/30/60 menit atau sampai Chrome ditutup.
 - **Tombol panik** `⌘/Ctrl+Shift+K`: kunci semua, kecilkan semua jendela, kosongkan clipboard.
@@ -39,8 +39,8 @@ Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 
 ## Uji
 ```bash
-node --test tests/*.test.mjs                            # 34 uji logika: password, kunci per situs, WebAuthn (Node 20+)
-CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 63 uji end-to-end di Chrome sungguhan (~2 menit)
+node --test tests/*.test.mjs                            # 35 uji logika: password, kunci per situs, WebAuthn (Node 20+)
+CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 68 uji end-to-end di Chrome sungguhan (~2 menit)
 ```
 Uji end-to-end butuh [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/), karena Chrome biasa (137+) menonaktifkan `--load-extension`.
 Ikon dibuat ulang dengan `python3 tools/make_icons.py` (butuh Pillow).
