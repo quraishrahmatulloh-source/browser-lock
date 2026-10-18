@@ -15,9 +15,9 @@ async function init() {
   }
   $("state").textContent = T("p.open");
   $("lockTab").classList.remove("hidden"); $("lock").classList.remove("hidden"); $("panic").classList.remove("hidden"); $("hint").classList.remove("hidden");
-  const mac = /Mac/i.test(navigator.platform);
-  $("hint").innerHTML = mac ? '<span class="kbd">⌘</span> <span class="kbd">Shift</span> <span class="kbd">L</span> · <span class="kbd">⌘</span> <span class="kbd">Shift</span> <span class="kbd">K</span> 🚨'
-                            : '<span class="kbd">Ctrl</span> <span class="kbd">Shift</span> <span class="kbd">L</span> · <span class="kbd">Ctrl</span> <span class="kbd">Shift</span> <span class="kbd">K</span> 🚨';
+  const mac = /Mac/i.test(navigator.platform), mod = mac ? "⌘" : "Ctrl";
+  const combo = (key, label) => `<span class="hintrow"><span class="kbd">${mod}</span> <span class="kbd">Shift</span> <span class="kbd">${key}</span> <b>${label}</b></span>`;
+  $("hint").innerHTML = [combo("Y", T("p.hintTab")), combo("L", T("p.hintAll")), combo("K", T("p.hintPanic"))].join("");
   const a = await send({ type: "getAttempts" });
   if (a.unseen) { $("alert").classList.remove("hidden"); $("alertText").textContent = T("p.attempts", { n: a.unseen }); }
   $("seen").onclick = async () => { await send({ type: "markSeen" }); $("alert").classList.add("hidden"); };

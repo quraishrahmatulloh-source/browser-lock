@@ -255,9 +255,9 @@ const handlers = {
     const st = sender.tab ? await pageState(sender.tab.url, sender.tab.id) : { locked: false, site: null, tab: false };
     return {
       hasPassword: await vault.hasPassword(), locked: await isLocked(), version: chrome.runtime.getManifest().version,
-      lang: settings.lang, bio: !!(await vault.getBio()),
+      lang: settings.lang, bio: !!(await vault.getBio()),   // lang dipakai skrip konten untuk format jam/tanggal
       pageLocked: st.locked, site: st.site, tabLocked: st.tab,   // untuk skrip konten: tab ini harus tertutup?
-      ui: { title: T("ov.title"), sub: T("ov.sub"), btn: T("ov.btn"), hint: T("ov.hint"), siteTitle: T("ov.site.title"), siteSub: T("ov.site.sub"), tabTitle: T("ov.tab.title"), tabSub: T("ov.tab.sub") },
+      ui: { lang: settings.lang, title: T("ov.title"), sub: T("ov.sub"), btn: T("ov.btn"), hint: T("ov.hint"), siteTitle: T("ov.site.title"), siteSub: T("ov.site.sub"), tabTitle: T("ov.tab.title"), tabSub: T("ov.tab.sub") },
     };
   },
   async openLockWindow({ site, tab }, sender) { await openLockWindow(typeof site === "string" ? site : null, tab && sender.tab ? sender.tab.id : null, sender.tab ? sender.tab.url : ""); return { ok: true }; },

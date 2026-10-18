@@ -40,7 +40,7 @@ Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 ## Uji
 ```bash
 node --test tests/*.test.mjs                            # 35 uji logika: password, kunci per situs, WebAuthn (Node 20+)
-CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 68 uji end-to-end di Chrome sungguhan (~2 menit)
+CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 73 uji end-to-end di Chrome sungguhan (~2 menit)
 ```
 Uji end-to-end butuh [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/), karena Chrome biasa (137+) menonaktifkan `--load-extension`.
 Ikon dibuat ulang dengan `python3 tools/make_icons.py` (butuh Pillow).

@@ -8,7 +8,7 @@
   const HIDE_ID = "__browser_lock_hide";
   const HOST_ATTR = "data-browser-lock";
   let locked = false, host = null, hostSite = undefined, hostKey = undefined, hostTab = false, observer = null, savedTitle = null, bodyWasInert = null;
-  let ui = { title: "Browser terkunci", sub: "Masukkan password untuk membuka semua tab.", btn: "Masukkan password", hint: "Atau klik ikon gembok di toolbar Chrome.", siteTitle: "Situs ini terkunci", siteSub: "Masukkan password untuk membuka situs ini.", tabTitle: "Tab ini terkunci", tabSub: "Masukkan password untuk membuka tab ini. Tab lain tidak terpengaruh." };
+  let ui = { lang: "id", title: "Browser terkunci", sub: "Masukkan password untuk membuka semua tab.", btn: "Masukkan password", hint: "Atau klik ikon gembok di toolbar Chrome.", siteTitle: "Situs ini terkunci", siteSub: "Masukkan password untuk membuka situs ini.", tabTitle: "Tab ini terkunci", tabSub: "Masukkan password untuk membuka tab ini. Tab lain tidak terpengaruh." };
 
   // 1) segera sembunyikan halaman sampai status diketahui, supaya tidak ada kilatan isi halaman
   const hider = document.createElement("style");
@@ -78,8 +78,9 @@
       </div>`;
     const tick = () => {
       const d = new Date();
-      root.getElementById("time").textContent = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      root.getElementById("date").textContent = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+      const loc = ui.lang === "en" ? "en-US" : "id-ID";     // format mengikuti bahasa yang dipilih, bukan bahasa browser
+      root.getElementById("time").textContent = d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit", hour12: ui.lang === "en" });
+      root.getElementById("date").textContent = d.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" });
     };
     tick(); el.__clock = setInterval(tick, 10_000);
     const btn = root.getElementById("open");

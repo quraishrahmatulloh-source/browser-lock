@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const EXT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const EXT = process.env.EXT_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");   // EXT_DIR: uji isi ZIP yang sudah diekstrak
 const CHROME = process.env.CHROME_BIN;
 if (!CHROME) { console.error("Set CHROME_BIN ke Chrome for Testing"); process.exit(2); }
 const PORT = 9350, SITE = 8765;
@@ -284,9 +284,19 @@ async function main() {
   await ext(extId, { type: "panic" });
   c = await until(async () => { const r = await covered(page); return r.host ? r : null; });
   ok("tombol panik langsung mengunci semua tab", !!c && c.vis === "hidden", JSON.stringify(c));
+  // ---- 7f. service worker dimatikan paksa: status kunci tidak boleh hilang (harus tersimpan, bukan di memori) ----
+  swc.close();
+  const swT = (await list()).find((t) => t.type === "service_worker" && t.url.includes(extId));
+  await fetch(`http://127.0.0.1:${PORT}/json/close/${swT.id}`).catch(() => {});
+  await sleep(1500);
+  ok("service worker benar-benar mati sebelum diuji", !(await list()).some((t) => t.id === swT.id));
+  ok("setelah service worker mati lalu bangun, browser tetap terkunci", (await ext(extId, { type: "getState" })).locked === true);
+  ok("halaman tetap tertutup setelah service worker mati", (await covered(page)).host === true);
+  const wrongAfterKill = await ext(extId, { type: "unlock", password: "salah-setelah-mati" });
+  ok("password salah tetap ditolak setelah service worker bangun", wrongAfterKill.ok === false);
   await ext(extId, { type: "unlock", password: "rahasia-satu-1" });
   await until(async () => !(await covered(page)).host);
-  swc.close();
+  ok("password benar membuka setelah service worker bangun", !(await covered(page)).host);
 
   // ---- 8. lupa password: pemulihan ----
   await ext(extId, { type: "lockNow" });
