@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Browser terkunci</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<main class="page">
+  <section class="card" id="card">
+    <div class="hero">
+      <img src="icons/icon128.png" alt="">
+      <h1 id="title">Browser terkunci</h1>
+      <p class="muted" id="sub">Masukkan password untuk membuka.</p>
+    </div>
+
+    <!-- buka kunci -->
+    <form id="unlockForm" autocomplete="off" novalidate>
+      <label class="field">Password
+        <span class="pw">
+          <input type="password" id="pw" autocomplete="current-password" autofocus required>
+          <button type="button" id="eye" aria-label="Tampilkan password" aria-pressed="false">👁</button>
+        </span>
+      </label>
+      <p class="msg" id="msg" role="alert" aria-live="polite"></p>
+      <button class="btn" id="go" type="submit" style="width:100%">Buka kunci</button>
+      <p class="foot"><button type="button" class="link" id="forgot">Lupa password?</button></p>
+    </form>
+
+    <!-- lupa password -->
+    <form id="recoverForm" class="hidden" autocomplete="off" novalidate>
+      <p class="muted">Masukkan kode pemulihan yang lo simpan saat membuat password, lalu pilih password baru.</p>
+      <label class="field">Kode pemulihan
+        <input type="text" id="rcode" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" autocapitalize="characters">
+      </label>
+      <label class="field">Password baru
+        <input type="password" id="np1" autocomplete="new-password">
+      </label>
+      <label class="field">Ulangi password baru
+        <input type="password" id="np2" autocomplete="new-password">
+      </label>
+      <p class="msg" id="rmsg" role="alert" aria-live="polite"></p>
+      <button class="btn" id="rgo" type="submit" style="width:100%">Pulihkan dan buka</button>
+      <p class="foot"><button type="button" class="link" id="back">Kembali</button></p>
+    </form>
+
+    <!-- kode pemulihan baru -->
+    <section id="newCode" class="hidden">
+      <p class="muted">Password baru aktif. Ini kode pemulihan baru lo. <b>Simpan sekarang</b>, kode ini tidak akan ditampilkan lagi.</p>
+      <div class="code" id="codeText"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn line grow" id="copy" type="button">Salin</button>
+        <button class="btn grow" id="done" type="button">Sudah gua simpan</button>
+      </div>
+    </section>
+
+    <p class="foot" id="foot"></p>
+  </section>
+</main>
+<script type="module" src="lock.js"></script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pengaturan Browser Lock</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<main class="page">
+  <section class="card wide" id="card">
+    <div class="hero">
+      <img src="icons/icon128.png" alt="">
+      <h1>Browser Lock</h1>
+      <p class="muted" id="sub"></p>
+    </div>
+
+    <!-- pertama kali: buat password -->
+    <form id="setup" class="hidden" autocomplete="off" novalidate>
+      <label class="field">Buat password
+        <span class="pw"><input type="password" id="s1" autocomplete="new-password"><button type="button" class="eye" aria-label="Tampilkan password">👁</button></span>
+      </label>
+      <label class="field">Ulangi password
+        <input type="password" id="s2" autocomplete="new-password">
+      </label>
+      <p class="muted">Minimal 8 karakter. Password disimpan sebagai hash di komputer lo, tidak pernah dikirim ke mana pun dan tidak bisa dilihat siapa pun, termasuk gua.</p>
+      <p class="msg" id="smsg" role="alert" aria-live="polite"></p>
+      <button class="btn" type="submit" style="width:100%">Aktifkan Browser Lock</button>
+    </form>
+
+    <!-- kode pemulihan (tampil sekali) -->
+    <section id="codeBox" class="hidden">
+      <div class="box">
+        <h2>Simpan kode pemulihan</h2>
+        <p>Kalau lo lupa password, kode ini satu-satunya cara masuk lagi tanpa menghapus ekstensi. <b>Tampil sekali saja.</b> Simpan di password manager atau catat di kertas.</p>
+        <div class="code" id="codeText"></div>
+        <div class="row">
+          <button class="btn line grow" id="copy" type="button">Salin</button>
+        </div>
+        <label class="check"><input type="checkbox" id="saved"> <span>Sudah gua simpan di tempat aman</span></label>
+        <button class="btn" id="codeDone" type="button" disabled>Lanjut</button>
+      </div>
+    </section>
+
+    <!-- pengaturan -->
+    <div id="main" class="hidden" style="display:grid;gap:16px">
+      <div class="box">
+        <h2>Kunci otomatis</h2>
+        <label class="field">Kunci kalau komputer tidak dipakai selama
+          <select id="auto">
+            <option value="0">Tidak pernah</option>
+            <option value="1">1 menit</option><option value="5">5 menit</option><option value="10">10 menit</option>
+            <option value="15">15 menit</option><option value="30">30 menit</option><option value="60">1 jam</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="onScreen"> <span>Kunci juga saat layar komputer dikunci</span></label>
+        <p class="muted">Chrome selalu terkunci saat dibuka ulang. Pintasan kunci cepat: <b>Ctrl+Shift+L</b> (Mac: <b>⌘+Shift+L</b>), bisa diubah di <b>chrome://extensions/shortcuts</b>.</p>
+        <p class="msg" id="amsg" role="status" aria-live="polite"></p>
+      </div>
+
+      <form class="box" id="change" autocomplete="off" novalidate>
+        <h2>Ganti password</h2>
+        <label class="field">Password sekarang <input type="password" id="c0" autocomplete="current-password"></label>
+        <label class="field">Password baru <input type="password" id="c1" autocomplete="new-password"></label>
+        <label class="field">Ulangi password baru <input type="password" id="c2" autocomplete="new-password"></label>
+        <p class="msg" id="cmsg" role="alert" aria-live="polite"></p>
+        <button class="btn line" type="submit">Ganti password</button>
+      </form>
+
+      <form class="box" id="regen" autocomplete="off" novalidate>
+        <h2>Kode pemulihan baru</h2>
+        <p class="muted">Bikin kode baru. Kode lama langsung tidak berlaku.</p>
+        <label class="field">Password sekarang <input type="password" id="r0" autocomplete="current-password"></label>
+        <p class="msg" id="rmsg" role="alert" aria-live="polite"></p>
+        <button class="btn line" type="submit">Buat kode baru</button>
+      </form>
+
+      <div class="box">
+        <h2>Batasan yang perlu lo tahu</h2>
+        <ul class="muted" style="margin:0;padding-left:20px;display:grid;gap:6px">
+          <li>Ekstensi bisa dimatikan atau dihapus lewat <b>chrome://extensions</b>. Browser Lock menutup tab, tapi bukan pengaman tingkat sistem. Untuk komputer bersama, tambahkan kunci layar komputer.</li>
+          <li>Mode Incognito dan profil Chrome lain tidak tercakup. Untuk Incognito, aktifkan <b>Izinkan di Incognito</b> di halaman detail ekstensi.</li>
+          <li>Lupa password dan kode pemulihan: satu-satunya jalan adalah menghapus ekstensi dan memasangnya lagi (semua pengaturan hilang).</li>
+        </ul>
+      </div>
+
+      <button class="btn" id="lockNow" type="button">🔒 Kunci sekarang</button>
+    </div>
+
+    <p class="foot" id="foot"></p>
+  </section>
+</main>
+<script type="module" src="options.js"></script>
+</body>
+</html>

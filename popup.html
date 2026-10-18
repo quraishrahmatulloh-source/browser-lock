@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Browser Lock</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>html{width:380px}.page{min-height:0;padding:10px}.card{padding:22px 20px}</style>
+</head>
+<body>
+<main class="page">
+  <section class="card">
+    <div class="hero">
+      <img src="icons/icon128.png" alt="" style="width:64px;height:64px">
+      <h1>Browser Lock</h1>
+      <p><span class="badge" id="state">…</span></p>
+    </div>
+    <p class="muted hidden" id="setupNote">Belum ada password. Atur dulu supaya Chrome terkunci saat dibuka.</p>
+    <button class="btn hidden" id="lock" type="button">🔒 Kunci sekarang</button>
+    <button class="btn line" id="settings" type="button">⚙ Pengaturan</button>
+    <p class="foot" id="foot"></p>
+  </section>
+</main>
+<script type="module" src="popup.js"></script>
+</body>
+</html>
