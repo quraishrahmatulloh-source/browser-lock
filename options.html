@@ -17,71 +17,106 @@
 
     <!-- pertama kali: buat password -->
     <form id="setup" class="hidden" autocomplete="off" novalidate>
-      <label class="field">Buat password
-        <span class="pw"><input type="password" id="s1" autocomplete="new-password"><button type="button" class="eye" aria-label="Tampilkan password">👁</button></span>
+      <label class="field"><span data-i18n="o.setup.pw">Buat password</span>
+        <span class="pw"><input type="password" id="s1" autocomplete="new-password"><button type="button" class="eye" aria-label="Show">👁</button></span>
       </label>
-      <label class="field">Ulangi password
+      <label class="field"><span data-i18n="o.setup.again">Ulangi password</span>
         <input type="password" id="s2" autocomplete="new-password">
       </label>
-      <p class="muted">Minimal 8 karakter. Password disimpan sebagai hash di komputer lo, tidak pernah dikirim ke mana pun dan tidak bisa dilihat siapa pun, termasuk gua.</p>
+      <p class="muted" data-i18n="o.setup.note">Minimal 8 karakter.</p>
       <p class="msg" id="smsg" role="alert" aria-live="polite"></p>
-      <button class="btn" type="submit" style="width:100%">Aktifkan Browser Lock</button>
+      <button class="btn" type="submit" style="width:100%" data-i18n="o.setup.go">Aktifkan Browser Lock</button>
     </form>
 
     <!-- kode pemulihan (tampil sekali) -->
     <section id="codeBox" class="hidden">
       <div class="box">
-        <h2>Simpan kode pemulihan</h2>
-        <p>Kalau lo lupa password, kode ini satu-satunya cara masuk lagi tanpa menghapus ekstensi. <b>Tampil sekali saja.</b> Simpan di password manager atau catat di kertas.</p>
+        <h2 data-i18n="o.code.title">Simpan kode pemulihan</h2>
+        <p data-i18n-html="o.code.text"></p>
         <div class="code" id="codeText"></div>
-        <div class="row">
-          <button class="btn line grow" id="copy" type="button">Salin</button>
-        </div>
-        <label class="check"><input type="checkbox" id="saved"> <span>Sudah gua simpan di tempat aman</span></label>
-        <button class="btn" id="codeDone" type="button" disabled>Lanjut</button>
+        <div class="row"><button class="btn line grow" id="copy" type="button" data-i18n="rec.copy">Salin</button></div>
+        <label class="check"><input type="checkbox" id="saved"> <span data-i18n="o.code.saved">Sudah gua simpan di tempat aman</span></label>
+        <button class="btn" id="codeDone" type="button" disabled data-i18n="o.code.next">Lanjut</button>
       </div>
     </section>
 
     <!-- pengaturan -->
     <div id="main" class="hidden grid2">
+      <div class="alert hidden span2" id="alert"><span id="alertText"></span><button type="button" id="alertSeen" data-i18n="p.seen">Tandai sudah dilihat</button></div>
+
       <div class="box">
-        <h2 class="sec-title"><span class="ic">⏱</span>Kunci otomatis</h2>
-        <label class="field">Kunci kalau komputer tidak dipakai selama
-          <select id="auto">
-            <option value="0">Tidak pernah</option>
-            <option value="1">1 menit</option><option value="5">5 menit</option><option value="10">10 menit</option>
-            <option value="15">15 menit</option><option value="30">30 menit</option><option value="60">1 jam</option>
-          </select>
+        <h2 class="sec-title"><span class="ic">⏱</span><span data-i18n="o.auto.title">Kunci otomatis</span></h2>
+        <label class="field"><span data-i18n="o.auto.label">Kunci kalau komputer tidak dipakai selama</span>
+          <select id="auto"></select>
         </label>
-        <label class="check"><input type="checkbox" id="onScreen"> <span>Kunci juga saat layar komputer dikunci</span></label>
-        <p class="muted">Chrome selalu terkunci saat dibuka ulang. Kunci cepat: <span class="kbd">Ctrl</span> <span class="kbd">Shift</span> <span class="kbd">L</span> (Mac: <span class="kbd">⌘</span> <span class="kbd">Shift</span> <span class="kbd">L</span>). Ubah di <b>chrome://extensions/shortcuts</b>.</p>
+        <label class="check"><input type="checkbox" id="onScreen"> <span data-i18n="o.auto.screen">Kunci juga saat layar komputer dikunci</span></label>
+        <p class="muted"><span class="kbd">Ctrl</span> <span class="kbd">Shift</span> <span class="kbd">L</span> · Mac <span class="kbd">⌘</span> <span class="kbd">Shift</span> <span class="kbd">L</span><br><span data-i18n-html="o.auto.hint"></span></p>
         <p class="msg" id="amsg" role="status" aria-live="polite"></p>
-        <button class="btn" id="lockNow" type="button">🔒 Kunci sekarang</button>
+        <button class="btn" id="lockNow" type="button" data-i18n="o.lockNow">🔒 Kunci sekarang</button>
+      </div>
+
+      <div class="box">
+        <h2 class="sec-title"><span class="ic">☝</span><span data-i18n="o.bio.title">Touch ID / sidik jari</span></h2>
+        <p class="muted" data-i18n="o.bio.text">Buka kunci dengan sidik jari.</p>
+        <p class="msg" id="bioMsg" role="status" aria-live="polite"></p>
+        <div class="row">
+          <button class="btn line grow" id="bioEnable" type="button" data-i18n="o.bio.enable">Aktifkan Touch ID</button>
+          <button class="btn line grow hidden" id="bioDisable" type="button" data-i18n="o.bio.disable">Matikan</button>
+        </div>
+      </div>
+
+      <div class="box span2">
+        <h2 class="sec-title"><span class="ic">🌐</span><span data-i18n="o.sites.title">Kunci per situs</span></h2>
+        <p class="muted" data-i18n="o.sites.text"></p>
+        <form class="add" id="siteForm" autocomplete="off" novalidate>
+          <input type="text" id="siteHost" data-i18n-ph="o.sites.host" placeholder="contoh: mail.google.com" spellcheck="false" autocapitalize="off">
+          <button class="btn line" type="submit" data-i18n="o.sites.add">Tambah</button>
+          <select id="siteMin"></select>
+        </form>
+        <p class="msg" id="siteMsg" role="alert" aria-live="polite"></p>
+        <ul class="items" id="siteList"></ul>
+      </div>
+
+      <div class="box">
+        <h2 class="sec-title"><span class="ic">🚨</span><span data-i18n="o.panic.title">Tombol panik</span></h2>
+        <p class="muted"><span data-i18n="o.panic.text"></span> <span class="kbd">Ctrl</span> <span class="kbd">Shift</span> <span class="kbd">K</span> · Mac <span class="kbd">⌘</span> <span class="kbd">Shift</span> <span class="kbd">K</span></p>
+        <label class="check"><input type="checkbox" id="panicMin"> <span data-i18n="o.panic.min">Kecilkan semua jendela Chrome</span></label>
+        <label class="check"><input type="checkbox" id="panicClip"> <span data-i18n="o.panic.clip">Kosongkan clipboard</span></label>
+        <button class="btn line" id="panicTest" type="button" data-i18n="o.panic.test">Coba sekarang</button>
+      </div>
+
+      <div class="box">
+        <h2 class="sec-title"><span class="ic">📋</span><span data-i18n="o.log.title">Percobaan gagal</span></h2>
+        <ul class="items" id="logList"></ul>
+        <button class="btn line hidden" id="logClear" type="button" data-i18n="o.log.clear">Hapus catatan</button>
       </div>
 
       <form class="box" id="change" autocomplete="off" novalidate>
-        <h2 class="sec-title"><span class="ic">🔑</span>Ganti password</h2>
-        <label class="field">Password sekarang <input type="password" id="c0" autocomplete="current-password"></label>
-        <label class="field">Password baru <input type="password" id="c1" autocomplete="new-password"></label>
-        <label class="field">Ulangi password baru <input type="password" id="c2" autocomplete="new-password"></label>
+        <h2 class="sec-title"><span class="ic">🔑</span><span data-i18n="o.chg.title">Ganti password</span></h2>
+        <label class="field"><span data-i18n="o.chg.cur">Password sekarang</span> <input type="password" id="c0" autocomplete="current-password"></label>
+        <label class="field"><span data-i18n="o.chg.new">Password baru</span> <input type="password" id="c1" autocomplete="new-password"></label>
+        <label class="field"><span data-i18n="o.chg.again">Ulangi password baru</span> <input type="password" id="c2" autocomplete="new-password"></label>
         <p class="msg" id="cmsg" role="alert" aria-live="polite"></p>
-        <button class="btn line" type="submit">Ganti password</button>
+        <button class="btn line" type="submit" data-i18n="o.chg.go">Ganti password</button>
       </form>
 
       <form class="box" id="regen" autocomplete="off" novalidate>
-        <h2 class="sec-title"><span class="ic">🆘</span>Kode pemulihan baru</h2>
-        <p class="muted">Bikin kode baru. Kode lama langsung tidak berlaku.</p>
-        <label class="field">Password sekarang <input type="password" id="r0" autocomplete="current-password"></label>
+        <h2 class="sec-title"><span class="ic">🆘</span><span data-i18n="o.regen.title">Kode pemulihan baru</span></h2>
+        <p class="muted" data-i18n="o.regen.text"></p>
+        <label class="field"><span data-i18n="o.chg.cur">Password sekarang</span> <input type="password" id="r0" autocomplete="current-password"></label>
         <p class="msg" id="rmsg" role="alert" aria-live="polite"></p>
-        <button class="btn line" type="submit">Buat kode baru</button>
+        <button class="btn line" type="submit" data-i18n="o.regen.go">Buat kode baru</button>
       </form>
 
       <div class="box">
-        <h2 class="sec-title"><span class="ic">⚠</span>Batasan yang perlu lo tahu</h2>
+        <h2 class="sec-title"><span class="ic">🈯</span><span data-i18n="o.lang.title">Bahasa</span></h2>
+        <select id="lang"><option value="id">Indonesia</option><option value="en">English</option></select>
+      </div>
+
+      <div class="box span2">
+        <h2 class="sec-title"><span class="ic">⚠</span><span data-i18n="o.limits.title">Batasan yang perlu lo tahu</span></h2>
         <ul class="muted" style="margin:0;padding-left:20px;display:grid;gap:6px">
-          <li>Ekstensi bisa dimatikan atau dihapus lewat <b>chrome://extensions</b>. Browser Lock menutup tab, bukan pengaman tingkat sistem. Untuk komputer bersama, tambahkan kunci layar komputer.</li>
-          <li>Incognito dan profil Chrome lain tidak tercakup. Untuk Incognito, aktifkan <b>Izinkan di Incognito</b> di detail ekstensi, dan pasang ekstensi ini di tiap profil.</li>
-          <li>Lupa password dan kode pemulihan: satu-satunya jalan menghapus ekstensi dan memasangnya lagi.</li>
+          <li data-i18n-html="o.limits.1"></li><li data-i18n-html="o.limits.2"></li><li data-i18n-html="o.limits.3"></li>
         </ul>
       </div>
     </div>

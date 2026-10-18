@@ -61,10 +61,21 @@ const covered = (c) => c.ev(`({host: !!document.querySelector('[data-browser-loc
 // kirim pesan lewat tab halaman ekstensi baru (ditutup lagi setelahnya)
 async function ext(extId, msg) {
   const t = await openTab(`chrome-extension://${extId}/popup.html`);
-  await sleep(700);
+  // saat terkunci, tab baru dialihkan ke layar kunci: tunggu sampai alamatnya stabil sebelum mengirim pesan
+  let last = "", same = 0;
+  for (let i = 0; i < 40 && same < 3; i++) { await sleep(250); const cur = (await list()).find((x) => x.id === t.id); const u = cur ? cur.url : ""; same = u === last && u ? same + 1 : 0; last = u; }
   const c = await conn(t.webSocketDebuggerUrl);
   try { return await send(c, msg); } finally { c.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${t.id}`).catch(() => {}); }
 }
+
+// evaluasi ekspresi bebas lewat halaman ekstensi (mis. mencari id tab Chrome)
+async function extEval(extId, expr) {
+  const t = await openTab(`chrome-extension://${extId}/popup.html`);
+  await sleep(1200);
+  const c = await conn(t.webSocketDebuggerUrl);
+  try { return await c.ev(expr); } finally { c.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${t.id}`).catch(() => {}); }
+}
+const chromeTabId = (extId, urlPattern) => extEval(extId, `chrome.tabs.query({ url: ${JSON.stringify(urlPattern)} }).then((t) => t[0] && t[0].id)`);
 
 const noLockTabs = () => until(async () => !(await list()).some((t) => t.type === "page" && t.url.includes("/lock.html")), 8000);
 
@@ -108,7 +119,7 @@ async function main() {
   // ---- 4. kunci sekarang ----
   await ext(extId, { type: "lockNow" });
   c = await until(async () => { const r = await covered(page); return r.host ? r : null; });
-  ok("halaman tertutup dan isinya disembunyikan saat terkunci", !!c && c.vis === "hidden" && c.title === "🔒 Terkunci", JSON.stringify(c));
+  ok("halaman tertutup dan isinya disembunyikan saat terkunci", !!c && c.vis === "hidden" && c.title === "🔒", JSON.stringify(c));
   const bodyText = await page.ev("document.getElementById('x').innerText");
   ok("isi halaman tidak terlihat (visibility hidden)", (await page.ev("getComputedStyle(document.getElementById('x')).visibility")) === "hidden", bodyText);
   ok("halaman pengaturan dialihkan ke layar kunci", !!(await target((t) => t.url.includes(`${extId}/lock.html`))));
@@ -145,6 +156,114 @@ async function main() {
   ok("tab chrome://newtab dikembalikan setelah unlock", !!back, back?.url);
   ok("tab layar kunci lama tertutup setelah unlock", !!(await noLockTabs()));
 
+  // ---- 7b. catatan percobaan gagal + lencana ----
+  const swc = await conn(sw.webSocketDebuggerUrl);
+  const badge = () => swc.ev("chrome.action.getBadgeText({})");
+  let att = await ext(extId, { type: "getAttempts" });
+  ok("satu percobaan salah tercatat (jenis password, belum dilihat)", att.log.length === 1 && att.log[0].k === "password" && att.unseen === 1, JSON.stringify(att));
+  ok("lencana ikon menampilkan jumlah percobaan gagal", (await badge()) === "1", String(await badge()));
+  await ext(extId, { type: "markSeen" });
+  ok("lencana hilang setelah ditandai dilihat, catatan tetap ada", (await badge()) === "" && (await ext(extId, { type: "getAttempts" })).log.length === 1);
+
+  // ---- 7c. kunci per situs ----
+  await ext(extId, { type: "setSettings", patch: { siteLocks: [{ host: "127.0.0.1", minutes: 15 }] } });
+  c = await until(async () => { const r = await covered(page); return r.host ? r : null; });
+  ok("situs yang diatur kunci per situs tertutup walau browser terbuka", !!c && c.vis === "hidden", JSON.stringify(c));
+  const otherT = await openTab(`http://localhost:${SITE}/`);
+  const other = await conn(otherT.webSocketDebuggerUrl); await sleep(1200);
+  ok("situs lain (bukan di daftar) tidak ikut tertutup", !(await covered(other)).host);
+  const sBad = await ext(extId, { type: "unlock", password: "salah-situs", site: "127.0.0.1" });
+  ok("password salah tidak membuka situs", sBad.ok === false && (await covered(page)).host === true);
+  const sOk = await ext(extId, { type: "unlock", password: "rahasia-satu-1", site: "127.0.0.1" });
+  c = await until(async () => { const r = await covered(page); return !r.host ? r : null; });
+  ok("password benar membuka situs itu saja", sOk.ok === true && !!c && c.vis === "visible", JSON.stringify(sOk));
+  const st2 = await ext(extId, { type: "getState" });
+  ok("browser sendiri tetap terbuka (bukan terkunci total)", st2.locked === false);
+  await ext(extId, { type: "setSettings", patch: { siteLocks: [] } });
+  other.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${otherT.id}`).catch(() => {});
+
+  // ---- 7c2. kunci SATU tab: tab lain tidak ikut terkunci ----
+  const tabOtherT = await openTab(`http://localhost:${SITE}/`);
+  const tabOther = await conn(tabOtherT.webSocketDebuggerUrl); await sleep(1200);
+  const idA = await chromeTabId(extId, `http://127.0.0.1:${SITE}/*`);
+  ok("id tab ditemukan", Number.isInteger(idA), String(idA));
+  const lockRes = await ext(extId, { type: "lockTab", tabId: idA });
+  c = await until(async () => { const r = await covered(page); return r.host ? r : null; });
+  ok("kunci tab: tab itu tertutup dan isinya disembunyikan", lockRes.ok === true && !!c && c.vis === "hidden", JSON.stringify([lockRes, c]));
+  ok("kunci tab: tab LAIN tidak ikut terkunci", !(await covered(tabOther)).host && (await covered(tabOther)).vis === "visible");
+  ok("kunci tab: browser sendiri tetap terbuka", (await ext(extId, { type: "getState" })).locked === false);
+  const tBad = await ext(extId, { type: "unlock", password: "salah-tab", tab: idA });
+  ok("kunci tab: password salah tidak membuka", tBad.ok === false && (await covered(page)).host === true);
+  await ext(extId, { type: "unlock", password: "rahasia-satu-1", tab: idA });
+  c = await until(async () => { const r = await covered(page); return !r.host ? r : null; });
+  ok("kunci tab: password benar membuka tab itu saja", !!c && c.vis === "visible" && !(await covered(tabOther)).host, JSON.stringify(c));
+  // kunci tab lalu kunci semua lalu buka browser: kunci tab ikut dilepas
+  await ext(extId, { type: "lockTab", tabId: idA });
+  await until(async () => (await covered(page)).host);
+  await ext(extId, { type: "lockNow" });
+  await until(async () => (await covered(tabOther)).host);
+  await ext(extId, { type: "unlock", password: "rahasia-satu-1" });
+  c = await until(async () => { const r = await covered(page); return !r.host && !(await covered(tabOther)).host ? r : null; });
+  ok("membuka kunci browser juga melepas kunci per tab", !!c);
+  // tab chrome:// yang dikunci sendirian dialihkan ke layar kunci, tab lain tetap terbuka
+  const ntp2 = await openTab("chrome://version"); await sleep(1500);   // halaman chrome:// yang unik, supaya jelas tab mana yang dikunci
+  const idN = await chromeTabId(extId, "chrome://version/*");
+  await ext(extId, { type: "lockTab", tabId: idN });
+  const ntpLocked = await target((t) => t.id === ntp2.id && t.url.includes("lock.html") && t.url.includes(`tab=${idN}`));
+  ok("kunci tab untuk halaman chrome:// dialihkan ke layar kunci khusus tab itu", !!ntpLocked, (await list()).map((t) => t.url).join(" | "));
+  ok("tab lain tetap terbuka saat tab chrome:// dikunci", !(await covered(page)).host);
+  await ext(extId, { type: "unlock", password: "rahasia-satu-1", tab: idN });
+  const ntpBack = await until(async () => (await list()).find((t) => t.id === ntp2.id && !t.url.includes("lock.html")));
+  ok("tab chrome:// kembali ke halaman asalnya setelah dibuka", !!ntpBack && /chrome:\/\/version/.test(ntpBack.url), ntpBack?.url);
+  tabOther.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${tabOtherT.id}`).catch(() => {});
+  await fetch(`http://127.0.0.1:${PORT}/json/close/${ntp2.id}`).catch(() => {});
+
+  // ---- 7d. Touch ID (autentikator virtual milik Chrome) ----
+  const boT = await openTab(`chrome-extension://${extId}/options.html`);
+  const bo = await conn(boT.webSocketDebuggerUrl);
+  await bo.send("WebAuthn.enable");
+  await bo.send("WebAuthn.addVirtualAuthenticator", { options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
+  await bo.send("Page.reload");   // deteksi dukungan Touch ID berjalan saat halaman dimuat, jadi muat ulang setelah autentikator ada
+  await sleep(800);
+  await until(async () => (await visible(bo, "#main")) && (await text(bo, "#bioMsg")));
+  ok("tombol Touch ID aktif saat perangkat mendukung", (await bo.ev("document.getElementById('bioEnable').disabled")) === false);
+  await bo.send("Page.bringToFront");     // WebAuthn butuh halaman yang sedang fokus
+  await bo.ev("document.getElementById('bioEnable').click()");
+  const bioOn = await until(async () => bo.ev("chrome.runtime.sendMessage({type:'getState'}).then((s) => s.bio)"), 10000);   // tanpa membuka tab lain (fokus)
+  ok("Touch ID berhasil didaftarkan", !!bioOn);
+  await bo.ev("chrome.runtime.sendMessage({type:'lockNow'})");        // halaman ini sendiri dialihkan ke layar kunci
+  await until(async () => (await bo.ev("location.href")).includes("lock.html"));
+  ok("tombol 'Buka dengan Touch ID' muncul di layar kunci", !!(await until(async () => bo.ev("!document.getElementById('bio').classList.contains('hidden')"))));
+  await bo.send("Page.bringToFront");
+  await bo.ev("document.getElementById('bio').click()");
+  c = await until(async () => { const r = await covered(page); return !r.host ? r : null; }, 10000);
+  ok("sidik jari yang sah membuka kunci", !!c && c.vis === "visible", JSON.stringify(c));
+  att = await ext(extId, { type: "getAttempts" });
+  const before = att.log.length;
+  await ext(extId, { type: "lockNow" });
+  await until(async () => (await covered(page)).host);
+  const ch1 = await ext(extId, { type: "bioChallenge" });
+  const bad = await ext(extId, { type: "bioUnlock", credId: ch1.credId, assertion: { authenticatorData: "AAAA", clientDataJSON: "AAAA", signature: "AAAA" } });
+  ok("assertion palsu DITOLAK dan tetap terkunci", bad.ok === false && (await covered(page)).host === true, JSON.stringify(bad));
+  const bad2 = await ext(extId, { type: "bioUnlock", credId: ch1.credId, assertion: { authenticatorData: "AAAA", clientDataJSON: "AAAA", signature: "AAAA" } });
+  ok("tantangan sekali pakai: percobaan kedua tanpa tantangan baru ditolak", bad2.ok === false);
+  await ext(extId, { type: "unlock", password: "rahasia-satu-1" });
+  const after = { ok: (await ext(extId, { type: "getState" })).locked === false };   // balasan unlock bisa hilang karena tab perantara dikembalikan, jadi cek status
+  att = await ext(extId, { type: "getAttempts" });
+  ok("percobaan Touch ID palsu tercatat sebagai 'biometric'", after.ok && att.log.length >= before + 2 && att.log.at(-1).k === "biometric", JSON.stringify(att.log.slice(-3)));
+  await ext(extId, { type: "bioRemove" });
+  ok("Touch ID bisa dimatikan", (await ext(extId, { type: "getState" })).bio === false);
+  bo.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${boT.id}`).catch(() => {});
+  await ext(extId, { type: "clearLog" });
+
+  // ---- 7e. tombol panik ----
+  await ext(extId, { type: "panic" });
+  c = await until(async () => { const r = await covered(page); return r.host ? r : null; });
+  ok("tombol panik langsung mengunci semua tab", !!c && c.vis === "hidden", JSON.stringify(c));
+  await ext(extId, { type: "unlock", password: "rahasia-satu-1" });
+  await until(async () => !(await covered(page)).host);
+  swc.close();
+
   // ---- 8. lupa password: pemulihan ----
   await ext(extId, { type: "lockNow" });
   await until(async () => (await covered(page)).host);
@@ -163,6 +282,7 @@ async function main() {
   await noLockTabs();
   await ext(extId, { type: "lockNow" });
   await until(async () => (await covered(page)).host);
+  await ext(extId, { type: "openLockWindow" });      // tidak ada tab ekstensi yang tersisa, jadi minta jendela kunci
   const lt2 = await target((t) => t.url.includes(`${extId}/lock.html`));
   const l3 = await conn(lt2.webSocketDebuggerUrl);
   await fill(l3, "#pw", "rahasia-satu-1"); await submit(l3, "#unlockForm");

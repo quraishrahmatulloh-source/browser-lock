@@ -87,3 +87,14 @@ button.link { padding: 0; background: none; border: 0; color: var(--blue); font:
 @media (min-width: 860px) { .grid2 { grid-template-columns: 1fr 1fr; align-items: start; } .grid2 > .span2 { grid-column: 1 / -1; } }
 .kbd { display: inline-block; padding: 1px 7px; font: 600 12.5px ui-monospace, Menlo, monospace; background: var(--card); border: 2px solid var(--line); border-radius: 6px; box-shadow: 1px 1px 0 var(--line); }
 .status-line { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+
+/* ---- daftar (situs, catatan gagal) ---- */
+.items { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.item { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 9px 12px; background: var(--card); border: 2.5px solid var(--line); border-radius: 12px; }
+.item b { word-break: break-all; } .item small { color: var(--muted); display: block; font-size: 12.5px; }
+.item button { padding: 4px 10px; font: 600 13px var(--sans); color: var(--text); background: none; border: 2px solid var(--line); border-radius: 8px; cursor: pointer; }
+.add { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.add select { grid-column: 1 / -1; }
+.alert { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 14px; font-weight: 600; font-size: 14px; color: #fff; background: var(--red); border: 2.5px solid var(--line); border-radius: 12px; }
+.alert button { padding: 4px 10px; font: 700 13px var(--sans); color: var(--text); background: var(--card); border: 2px solid var(--line); border-radius: 8px; cursor: pointer; }
+.dot { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; background: var(--red); }

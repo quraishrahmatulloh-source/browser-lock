@@ -3,11 +3,16 @@
 Ekstensi Chrome yang mengunci browser dengan password. Begitu Chrome dibuka, semua tab tertutup sampai password benar.
 Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 
-## Cara kerja
-- **Chrome dibuka** → semua tab disembunyikan dan jendela kunci muncul. Sesi tidak bertahan setelah Chrome ditutup, jadi selalu terkunci.
+## Fitur
+- **Terkunci setiap Chrome dibuka.** Semua tab disembunyikan dan jendela kunci muncul. Sesi tidak bertahan setelah Chrome ditutup.
 - **Kunci otomatis** saat komputer tidak dipakai (1 menit sampai 1 jam) dan saat layar komputer dikunci.
-- **Kunci cepat** lewat tombol gembok atau pintasan `Ctrl+Shift+L` (Mac: `⌘+Shift+L`).
-- **Lupa password** → pakai kode pemulihan yang ditampilkan sekali saat membuat password.
+- **Kunci semua** atau **kunci satu tab saja** (tab lain tetap terbuka): tombol di popup, atau `⌘/Ctrl+Shift+L` (semua) dan `⌘/Ctrl+Shift+Y` (tab ini).
+- **Touch ID / sidik jari** (opsional, WebAuthn). Password tetap jadi cadangan.
+- **Kunci per situs**: bank atau email minta password lagi walau Chrome terbuka, kedaluwarsa tiap 5/15/30/60 menit atau sampai Chrome ditutup.
+- **Tombol panik** `⌘/Ctrl+Shift+K`: kunci semua, kecilkan semua jendela, kosongkan clipboard.
+- **Catatan percobaan gagal** dengan lencana di ikon.
+- **Kode pemulihan** kalau lupa password.
+- Bahasa **Indonesia dan English**.
 
 ## Pasang (belum lewat Chrome Web Store)
 1. Buka `chrome://extensions` lalu aktifkan **Developer mode** (kanan atas).
@@ -16,6 +21,7 @@ Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 4. Pin ikon gembok di toolbar (ikon puzzle → pin).
 
 ## Keamanan
+- **Touch ID**: ekstensi tidak pernah menyentuh sidik jari. Sistem operasi yang memverifikasi, ekstensi cuma memeriksa tanda tangan WebAuthn (ES256) dengan tantangan sekali pakai, wajib ada verifikasi pengguna (UV), dan percobaan palsu dicatat serta dihitung ke pembatasan.
 - Password disimpan sebagai **PBKDF2-SHA256 (250.000 iterasi)** dengan salt acak, tidak pernah sebagai teks asli.
 - Percobaan salah dibatasi: 5 gratis, lalu tunggu 30 dtk, 1 mnt, 2 mnt, … maksimal 15 mnt. Berlaku juga untuk kode pemulihan.
 - **Password tidak diketik di halaman web.** Layar kunci di halaman cuma tombol; password diketik di jendela milik ekstensi, jadi skrip situs tidak bisa mengintip ketikan.
@@ -33,15 +39,18 @@ Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 
 ## Uji
 ```bash
-node --test tests/auth.test.mjs                         # 13 uji logika password (Node 20+)
-CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 36 uji end-to-end di Chrome sungguhan (~45 dtk)
+node --test tests/*.test.mjs                            # 34 uji logika: password, kunci per situs, WebAuthn (Node 20+)
+CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 63 uji end-to-end di Chrome sungguhan (~2 menit)
 ```
 Uji end-to-end butuh [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/), karena Chrome biasa (137+) menonaktifkan `--load-extension`.
 Ikon dibuat ulang dengan `python3 tools/make_icons.py` (butuh Pillow).
 
 ## Struktur
-`background.js` service worker (status kunci, tab, auto-lock) · `content.js` penutup halaman · `lib/auth.js` logika password ·
+`background.js` service worker (status kunci, tab, auto-lock, panik) · `content.js` penutup halaman · `lib/auth.js` password dan catatan gagal · `lib/sites.js` kunci per situs · `lib/webauthn.js` verifikasi Touch ID · `lib/i18n.js` dua bahasa ·
 `lock.*` jendela kunci · `options.*` pengaturan · `popup.*` popup toolbar · `ui.css` gaya bersama.
+
+## Chrome Web Store
+`PRIVACY.md` (kebijakan privasi), `store/LISTING.md` (deskripsi ID/EN dan justifikasi izin), dan `tools/package.sh` (membuat ZIP siap unggah).
 
 ## Lisensi
 MIT, lihat [LICENSE](LICENSE). Font [Pixelify Sans](https://fonts.google.com/specimen/Pixelify+Sans) berlisensi SIL Open Font License 1.1.

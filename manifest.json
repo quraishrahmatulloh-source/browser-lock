@@ -2,14 +2,28 @@
   "manifest_version": 3,
   "name": "Browser Lock",
   "version": "1.0",
-  "description": "Kunci Chrome dengan password. Semua tab tertutup sampai password benar. Tanpa akun, tanpa internet, data cuma di komputer lo.",
-  "minimum_chrome_version": "110",
-  "permissions": ["storage", "idle", "tabs"],
-  "background": { "service_worker": "background.js", "type": "module" },
+  "description": "Kunci Chrome dengan password atau Touch ID. Semua tab tertutup sampai terbuka. Tanpa akun, tanpa internet, data cuma di komputer lo.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "storage",
+    "idle",
+    "tabs",
+    "alarms",
+    "offscreen",
+    "clipboardWrite"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start",
       "match_about_blank": true
     }
@@ -17,14 +31,42 @@
   "action": {
     "default_title": "Browser Lock",
     "default_popup": "popup.html",
-    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png" }
-  },
-  "options_ui": { "page": "options.html", "open_in_tab": true },
-  "commands": {
-    "lock-now": {
-      "suggested_key": { "default": "Ctrl+Shift+L", "mac": "Command+Shift+L" },
-      "description": "Kunci browser sekarang"
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
     }
   },
-  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "lock-now": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Kunci browser sekarang"
+    },
+    "panic": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Tombol panik: kunci, kecilkan jendela, kosongkan clipboard"
+    },
+    "lock-tab": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Kunci tab ini saja (tab lain tetap terbuka)"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }

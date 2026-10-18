@@ -1,102 +1,187 @@
 // Service worker Browser Lock. Semua status disimpan di storage (service worker boleh mati kapan saja).
-//  - storage.local   : hash password, kode pemulihan, pengaturan, hitungan salah
-//  - storage.session : "unlocked" (hilang otomatis saat Chrome ditutup => selalu terkunci saat dibuka lagi)
+//  - storage.local   : hash password, kode pemulihan, pengaturan, catatan gagal, kunci publik Touch ID
+//  - storage.session : "unlocked", izin buka per situs, tantangan Touch ID (hilang saat Chrome ditutup => selalu terkunci saat dibuka lagi)
 import { Vault } from "./lib/auth.js";
+import { isSiteLocked, expiryFor, matchRule } from "./lib/sites.js";
+import { verifyAssertion, bytesToB64u } from "./lib/webauthn.js";
+import { makeT } from "./lib/i18n.js";
 
 const vault = new Vault({ get: (k) => chrome.storage.local.get(k), set: (o) => chrome.storage.local.set(o) });
 const LOCK_PAGE = chrome.runtime.getURL("lock.html");
 const EXT_ORIGIN = chrome.runtime.getURL("");
+const EXT_ID = chrome.runtime.id;
 
 const sess = {
   get: async (key) => (await chrome.storage.session.get(key))[key],
   set: (key, value) => chrome.storage.session.set({ [key]: value }),
 };
+// Pembaruan daftar di storage.session harus berurutan. Tanpa ini dua tab yang dialihkan hampir bersamaan saling menimpa
+// (baca-ubah-tulis bersamaan), sehingga catatan asal salah satu tab hilang dan tab itu ditutup, bukan dikembalikan.
+let chain = Promise.resolve();
+function updateMap(key, fn) {
+  const run = chain.then(async () => { const m = (await sess.get(key)) || {}; const r = await fn(m); await sess.set(key, m); return r; });
+  chain = run.catch(() => {});
+  return run;
+}
+const takeAll = (key) => updateMap(key, (m) => { const copy = { ...m }; for (const k of Object.keys(m)) delete m[k]; return copy; });
+const clearMap = (key) => updateMap(key, (m) => { for (const k of Object.keys(m)) delete m[k]; });
 
+const isLockPage = (url) => !!url && url.startsWith(LOCK_PAGE);
 const isUnlocked = async () => !!(await sess.get("unlocked"));
 const isLocked = async () => (await vault.hasPassword()) && !(await isUnlocked());
 
-// ---------- tab ----------
-const isLockPage = (url) => !!url && url.startsWith(LOCK_PAGE);
-
-/** Tab yang tidak bisa ditutup overlay (chrome://, Web Store, halaman ekstensi, file:// tanpa izin) dialihkan ke halaman kunci. */
-async function redirectToLockPage(tab) {
-  const url = tab.url || tab.pendingUrl || "";
-  if (!tab.id || isLockPage(url)) return;
-  const map = (await sess.get("redirected")) || {};
-  if (url && !map[tab.id]) map[tab.id] = url;
-  await sess.set("redirected", map);
-  try { await chrome.tabs.update(tab.id, { url: `${LOCK_PAGE}?mode=tab` }); } catch { /* tab sudah tertutup */ }
+// ---------- status per halaman ----------
+/** Apakah halaman (URL) ini harus tertutup sekarang: karena browser terkunci, atau karena aturan kunci per situs. */
+async function pageState(url, tabId) {
+  if (await isLocked()) return { locked: true, site: null, tab: false };
+  if (!(await vault.hasPassword())) return { locked: false, site: null, tab: false };
+  if (tabId != null && ((await sess.get("lockedTabs")) || {})[tabId]) return { locked: true, site: null, tab: true };   // satu tab dikunci sendiri
+  const { siteLocks } = await vault.getSettings();
+  const rule = isSiteLocked(url, siteLocks, (await sess.get("siteOk")) || {});
+  return rule ? { locked: true, site: rule.host, tab: false } : { locked: false, site: null, tab: false };
 }
 
-/** Tanya skrip konten di tab apakah hidup. Kalau tidak ada jawaban, tab itu tidak bisa ditutup overlay. */
-async function coverTab(tab, type) {
+// ---------- tab ----------
+/** Tab yang tidak bisa ditutup overlay (chrome://, Web Store, halaman ekstensi, file:// tanpa izin) dialihkan ke halaman kunci. */
+async function redirectToLockPage(tab, { tabScope = false } = {}) {
+  const url = tab.url || tab.pendingUrl || "";
+  if (!tab.id || isLockPage(url)) return;
+  if (url) await updateMap("redirected", (m) => { if (!m[tab.id]) m[tab.id] = url; });
+  try { await chrome.tabs.update(tab.id, { url: `${LOCK_PAGE}?mode=tab${tabScope ? `&tab=${tab.id}` : ""}` }); } catch { /* tab sudah tertutup */ }
+}
+
+/**
+ * Minta skrip konten di tab menghitung ulang statusnya ("refresh"). Tidak ada jawaban = tab itu tidak bisa ditutup overlay.
+ * Saat browser terkunci, tab seperti itu dialihkan ke halaman kunci.
+ */
+async function refreshTab(tab, { redirect = false, tabScope = false } = {}) {
   if (!tab.id || isLockPage(tab.url || tab.pendingUrl)) return;
-  try {
-    await chrome.tabs.sendMessage(tab.id, { type }, { frameId: 0 });
-  } catch {
-    if (type === "lock") await redirectToLockPage(tab);
-  }
+  try { await chrome.tabs.sendMessage(tab.id, { type: "refresh" }, { frameId: 0 }); }
+  catch { if (redirect) await redirectToLockPage(tab, { tabScope }); }
+}
+
+async function refreshAll({ redirect = false } = {}) {
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(tabs.map((t) => (isLockPage(t.url) ? null : refreshTab(t, { redirect }))));
 }
 
 async function lockNow({ openWindow = false } = {}) {
   if (!(await vault.hasPassword())) return;
   await sess.set("unlocked", false);
-  const tabs = await chrome.tabs.query({});
-  await Promise.all(tabs.map((t) => coverTab(t, "lock")));
+  await clearMap("siteOk");               // setelah dibuka lagi, kunci per situs berlaku dari awal
+  await refreshAll({ redirect: true });
   if (openWindow) await openLockWindow();
 }
 
 async function closeLockWindow() {
   const id = await sess.get("lockWin");
-  await chrome.storage.session.remove("lockWin");
+  await chrome.storage.session.remove(["lockWin", "lockWinKey"]);
   if (id) { try { await chrome.windows.remove(id); } catch { /* sudah tertutup */ } }
 }
 
 /** Tandai terbuka dan buka tutup di semua tab. */
-async function markUnlocked() {
-  await sess.set("unlocked", true);
-  const tabs = await chrome.tabs.query({});
-  await Promise.all(tabs.map((t) => (isLockPage(t.url) ? null : chrome.tabs.sendMessage(t.id, { type: "unlock" }, { frameId: 0 }).catch(() => {}))));
-}
+async function markUnlocked() { await sess.set("unlocked", true); await clearMap("lockedTabs"); await refreshAll(); }   // buka kunci browser = pemilik terbukti, kunci per tab ikut dilepas
 
 /** Bereskan layar kunci: kembalikan tab yang tadi dialihkan, tutup jendela kunci. Dipisah supaya kode pemulihan sempat dibaca. */
 async function finishUnlockUi() {
-  const map = (await sess.get("redirected")) || {};
-  await sess.set("redirected", {});
+  const map = await takeAll("redirected");
   await Promise.all(Object.entries(map).map(([id, url]) => chrome.tabs.update(Number(id), { url }).catch(() => {})));
   await closeLockWindow();
-  // tab halaman kunci yang tidak punya catatan asal: tutup supaya tidak tersisa
   const left = (await chrome.tabs.query({})).filter((t) => isLockPage(t.url) && t.url.includes("mode=tab"));
   await Promise.all(left.map((t) => chrome.tabs.remove(t.id).catch(() => {})));
 }
 
-async function openLockWindow() {
-  if (!(await isLocked())) return;
-  const id = await sess.get("lockWin");
-  if (id) {
-    try { await chrome.windows.update(id, { focused: true, drawAttention: true }); return; } catch { /* jendela lama sudah hilang */ }
-  }
-  const w = await chrome.windows.create({ url: `${LOCK_PAGE}?mode=window`, type: "popup", width: 440, height: 640, focused: true });
-  await sess.set("lockWin", w.id);
+/** Kunci SATU tab saja. Tab lain tidak disentuh. */
+async function lockTab(tabId) {
+  if (!(await vault.hasPassword()) || (await isLocked())) return false;
+  let tab; try { tab = await chrome.tabs.get(tabId); } catch { return false; }
+  await updateMap("lockedTabs", (m) => { m[tabId] = true; });
+  await refreshTab(tab, { redirect: true, tabScope: true });
+  return true;
 }
 
-// ---------- auto-lock ----------
+/** Buka satu tab yang dikunci sendiri; kembalikan halaman asalnya kalau tadi dialihkan. */
+async function unlockTab(tabId) {
+  await updateMap("lockedTabs", (m) => { delete m[tabId]; });
+  const orig = await updateMap("redirected", (m) => { const o = m[tabId]; delete m[tabId]; return o; });
+  if (orig) await chrome.tabs.update(tabId, { url: orig }).catch(() => {});
+  else await chrome.tabs.sendMessage(tabId, { type: "refresh" }, { frameId: 0 }).catch(() => {});
+  await closeLockWindow();
+}
+
+/** Buka satu situs yang dikunci per situs (browser sendiri sudah terbuka). */
+async function unlockSite(host) {
+  const { siteLocks } = await vault.getSettings();
+  const rule = siteLocks.find((r) => r.host === host);
+  if (!rule) return false;
+  await updateMap("siteOk", (m) => { m[rule.host] = expiryFor(rule); });
+  await refreshAll();
+  await closeLockWindow();
+  return true;
+}
+
+async function openLockWindow(site = null, tabId = null) {
+  const locked = await isLocked();
+  let key = "browser", q = "?mode=window";
+  if (!locked) {
+    if (tabId != null && ((await sess.get("lockedTabs")) || {})[tabId]) { key = `tab:${tabId}`; q = `?mode=window&tab=${tabId}`; }
+    else if (site && (await vault.getSettings()).siteLocks.some((r) => r.host === site)) { key = `site:${site}`; q = `?mode=window&site=${encodeURIComponent(site)}`; }
+    else return;
+  }
+  const id = await sess.get("lockWin");
+  if (id && (await sess.get("lockWinKey")) === key) { try { await chrome.windows.update(id, { focused: true, drawAttention: true }); return; } catch { /* jendela lama hilang */ } }
+  if (id) await closeLockWindow();
+  const w = await chrome.windows.create({ url: LOCK_PAGE + q, type: "popup", width: 440, height: 660, focused: true });
+  await sess.set("lockWin", w.id); await sess.set("lockWinKey", key);
+}
+
+// ---------- catatan percobaan gagal + lencana ----------
+async function updateBadge() {
+  const { unseen } = await vault.getAttempts();
+  await chrome.action.setBadgeText({ text: unseen ? String(Math.min(unseen, 99)) : "" });
+  await chrome.action.setBadgeBackgroundColor({ color: "#d6364a" });
+}
+
+// ---------- tombol panik ----------
+async function clearClipboard() {
+  try { await chrome.offscreen.createDocument({ url: "offscreen.html", reasons: ["CLIPBOARD"], justification: "Kosongkan clipboard saat tombol panik ditekan" }); }
+  catch (e) { if (!String(e).includes("single offscreen")) throw e; }
+  try { await chrome.runtime.sendMessage({ type: "offscreen-clear" }); } finally { try { await chrome.offscreen.closeDocument(); } catch { /* sudah tertutup */ } }
+}
+async function panic() {
+  if (!(await vault.hasPassword())) return;
+  await lockNow();
+  const s = await vault.getSettings();
+  if (s.panicMinimize) for (const w of await chrome.windows.getAll()) { try { await chrome.windows.update(w.id, { state: "minimized" }); } catch { /* abaikan */ } }
+  if (s.panicClipboard) await clearClipboard().catch(() => {});
+}
+
+// ---------- kunci otomatis + kunci per situs berkala ----------
 async function applyIdleSettings() {
   const { autoLockMin } = await vault.getSettings();
   chrome.idle.setDetectionInterval(autoLockMin > 0 ? Math.max(15, autoLockMin * 60) : 600);
 }
-
 chrome.idle.onStateChanged.addListener(async (state) => {
   const s = await vault.getSettings();
   if (state === "idle" && s.autoLockMin > 0) await lockNow();
   if (state === "locked" && s.lockOnScreenLock) await lockNow();
 });
 
+chrome.alarms.get("sitecheck").then((a) => { if (!a) chrome.alarms.create("sitecheck", { periodInMinutes: 1 }); });
+chrome.alarms.onAlarm.addListener(async (a) => {
+  if (a.name !== "sitecheck" || (await isLocked())) return;
+  const { siteLocks } = await vault.getSettings();
+  if (!siteLocks.length) return;
+  const ok = (await sess.get("siteOk")) || {};
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(tabs.filter((t) => isSiteLocked(t.url, siteLocks, ok)).map((t) => refreshTab(t)));   // kadaluarsa => tertutup lagi
+});
+
 // ---------- kejadian ----------
 chrome.runtime.onInstalled.addListener(async (d) => {
   await chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
   if (d.reason === "install" && !(await vault.hasPassword())) chrome.runtime.openOptionsPage();
-  applyIdleSettings();
+  applyIdleSettings(); updateBadge();
 });
 
 // Sesi browser baru = storage.session kosong (penanda "booted" belum ada). Tidak bergantung pada onStartup,
@@ -106,49 +191,67 @@ function bootCheck() {
   return (booting ||= (async () => {
     if (await sess.get("booted")) return;
     await sess.set("booted", true);
-    if (await isLocked()) {   // Chrome baru dibuka: minta password langsung
-      const tabs = await chrome.tabs.query({});
-      await Promise.all(tabs.map((t) => coverTab(t, "lock")));
-      await openLockWindow();
-    }
+    if (await isLocked()) { await refreshAll({ redirect: true }); await openLockWindow(); }   // Chrome baru dibuka: minta password langsung
   })());
 }
-chrome.runtime.onStartup.addListener(() => { applyIdleSettings(); bootCheck(); });
+chrome.runtime.onStartup.addListener(() => { applyIdleSettings(); bootCheck(); updateBadge(); });
 
 // tab baru / berpindah halaman saat terkunci: pastikan tertutup
 chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
   if (info.status !== "complete" && !info.url) return;
-  if (await isLocked()) await coverTab({ ...tab, id: tabId }, "lock");
+  if (await isLocked()) await refreshTab({ ...tab, id: tabId }, { redirect: true });
 });
-chrome.tabs.onCreated.addListener(async (tab) => { if (await isLocked()) await coverTab(tab, "lock"); });
+chrome.tabs.onCreated.addListener(async (tab) => { if (await isLocked()) await refreshTab(tab, { redirect: true }); });
+chrome.windows.onRemoved.addListener(async (id) => { if ((await sess.get("lockWin")) === id) await chrome.storage.session.remove(["lockWin", "lockWinKey"]); });
 
-chrome.windows.onRemoved.addListener(async (id) => { if ((await sess.get("lockWin")) === id) await chrome.storage.session.remove("lockWin"); });
+chrome.commands.onCommand.addListener(async (cmd) => {
+  if (cmd === "lock-now") lockNow();
+  else if (cmd === "panic") panic();
+  else if (cmd === "lock-tab") { const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); if (t) lockTab(t.id); }
+});
+chrome.tabs.onRemoved.addListener(async (tabId) => {   // bersihkan catatan tab yang sudah ditutup
+  for (const key of ["lockedTabs", "redirected"]) await updateMap(key, (m) => { delete m[tabId]; });
+});
 
-chrome.commands.onCommand.addListener((cmd) => { if (cmd === "lock-now") lockNow(); });
-
-applyIdleSettings();
-bootCheck();
+applyIdleSettings(); bootCheck(); updateBadge();
 
 // ---------- pesan ----------
 // Aksi sensitif hanya dari halaman ekstensi ini (jendela kunci, popup, opsi). Skrip konten di halaman web hanya boleh tanya status.
-const fromExtensionPage = (sender) => sender.id === chrome.runtime.id && !!sender.url && sender.url.startsWith(EXT_ORIGIN);
+const fromExtensionPage = (sender) => sender.id === EXT_ID && !!sender.url && sender.url.startsWith(EXT_ORIGIN);
+const goodB64u = (s, max) => typeof s === "string" && s.length > 0 && s.length <= max && /^[A-Za-z0-9_-]+$/.test(s);
+
+/** Setelah password / sidik jari / kode pemulihan benar: buka sesuai konteks (browser atau satu situs). */
+async function completeUnlock({ site, tab, defer }) {
+  if (tab != null && !(await isLocked())) { await unlockTab(Number(tab)); return; }
+  if (site && !(await isLocked())) { await unlockSite(site); return; }
+  await markUnlocked();
+  if (defer) setTimeout(async () => { if (await isUnlocked()) await finishUnlockUi(); }, 1800);   // jaga-jaga layar kunci tidak memanggil finishUnlock
+  else await finishUnlockUi();
+}
 
 const handlers = {
-  async getState() {
-    return { hasPassword: await vault.hasPassword(), locked: await isLocked(), version: chrome.runtime.getManifest().version };
+  async lockTab({ tabId }) { return { ok: await lockTab(Number(tabId)) }; },
+  async getState(_msg, sender) {
+    const settings = await vault.getSettings();
+    const T = makeT(settings.lang);
+    const st = sender.tab ? await pageState(sender.tab.url, sender.tab.id) : { locked: false, site: null, tab: false };
+    return {
+      hasPassword: await vault.hasPassword(), locked: await isLocked(), version: chrome.runtime.getManifest().version,
+      lang: settings.lang, bio: !!(await vault.getBio()),
+      pageLocked: st.locked, site: st.site, tabLocked: st.tab,   // untuk skrip konten: tab ini harus tertutup?
+      ui: { title: T("ov.title"), sub: T("ov.sub"), btn: T("ov.btn"), hint: T("ov.hint"), siteTitle: T("ov.site.title"), siteSub: T("ov.site.sub"), tabTitle: T("ov.tab.title"), tabSub: T("ov.tab.sub") },
+    };
   },
-  async openLockWindow() { await openLockWindow(); return { ok: true }; },
+  async openLockWindow({ site, tab }, sender) { await openLockWindow(typeof site === "string" ? site : null, tab && sender.tab ? sender.tab.id : null); return { ok: true }; },
 
-  async unlock({ password, defer }) {
+  async unlock({ password, defer, site, tab }) {
     const r = await vault.tryUnlock(password);
-    if (r.ok) {
-      await markUnlocked();
-      if (defer) setTimeout(async () => { if (await isUnlocked()) await finishUnlockUi(); }, 1800);   // jaga-jaga layar kunci tidak memanggil finishUnlock; dilewati kalau sudah dikunci lagi
-      else await finishUnlockUi();
-    }
+    if (!r.ok && !r.throttled) await updateBadge();
+    if (r.ok) await completeUnlock({ site, tab, defer });
     return r;
   },
   async lockNow() { await lockNow(); return { ok: true }; },
+  async panic() { await panic(); return { ok: true }; },
 
   async setInitialPassword({ password }) {
     const r = await vault.setInitialPassword(password);
@@ -157,27 +260,70 @@ const handlers = {
   },
   async recover({ code, password }) {
     const r = await vault.recover(code, password);
+    if (!r.ok && !r.throttled) await updateBadge();
     if (r.ok) await markUnlocked();            // layar kunci dibiarkan dulu sampai kode pemulihan baru dibaca
     return r;
   },
   async finishUnlock() { if (await isUnlocked()) await finishUnlockUi(); return { ok: true }; },
 
-  // di bawah ini hanya boleh saat sudah terbuka
+  // ---- Touch ID / sidik jari (WebAuthn) ----
+  async bioChallenge() {
+    const bio = await vault.getBio();
+    if (!bio) return { ok: false, error: "no-bio" };
+    const blocked = await vault.gate();
+    if (blocked) return blocked;
+    const challenge = bytesToB64u(crypto.getRandomValues(new Uint8Array(32)));
+    await sess.set("bioCh", { challenge, exp: Date.now() + 120_000 });
+    return { ok: true, challenge, credId: bio.credId, rpId: EXT_ID };
+  },
+  async bioUnlock({ credId, assertion, site, tab, defer }) {
+    const bio = await vault.getBio();
+    if (!bio) return { ok: false, error: "no-bio" };
+    const blocked = await vault.gate();
+    if (blocked) return blocked;
+    const ch = await sess.get("bioCh");
+    await chrome.storage.session.remove("bioCh");          // tantangan sekali pakai (anti replay)
+    let good = false;
+    if (ch && ch.exp > Date.now() && credId === bio.credId && assertion && goodB64u(assertion.signature, 400) && goodB64u(assertion.authenticatorData, 400) && goodB64u(assertion.clientDataJSON, 2000)) {
+      good = (await verifyAssertion({ publicKeySpki: bio.publicKey, rpId: EXT_ID, origin: `chrome-extension://${EXT_ID}`, challenge: ch.challenge, assertion })).ok;
+    }
+    if (!good) { const r = await vault.failAttempt(Date.now(), "biometric"); await updateBadge(); return r; }
+    await vault.clearFails();
+    await completeUnlock({ site, tab, defer });
+    return { ok: true };
+  },
+
+  // ---- di bawah ini hanya boleh saat sudah terbuka ----
   async changePassword({ current, next }) { return vault.changePassword(current, next); },
   async regenerateRecovery({ password }) { return vault.regenerateRecovery(password); },
   async getSettings() { return vault.getSettings(); },
-  async setSettings({ patch }) { const s = await vault.setSettings(patch); await applyIdleSettings(); return s; },
+  async setSettings({ patch }) {
+    const s = await vault.setSettings(patch);
+    await applyIdleSettings();
+    if (patch && Array.isArray(patch.siteLocks)) await refreshAll();   // aturan baru/dihapus langsung berlaku
+    return s;
+  },
+  async getAttempts() { return vault.getAttempts(); },
+  async markSeen() { await vault.markSeen(); await updateBadge(); return { ok: true }; },
+  async clearLog() { await vault.clearLog(); await updateBadge(); return { ok: true }; },
+  async bioRegister({ credId, publicKey }) {
+    if (!goodB64u(credId, 1400) || !goodB64u(publicKey, 400)) return { ok: false, error: "invalid" };
+    await vault.setBio({ credId, publicKey });
+    return { ok: true };
+  },
+  async bioRemove() { await vault.removeBio(); return { ok: true }; },
 };
 const PUBLIC = new Set(["getState", "openLockWindow"]);
-const NEEDS_UNLOCKED = new Set(["changePassword", "regenerateRecovery", "getSettings", "setSettings"]);
+const NEEDS_UNLOCKED = new Set(["changePassword", "regenerateRecovery", "getSettings", "setSettings", "getAttempts", "markSeen", "clearLog", "bioRegister", "bioRemove"]);
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === "offscreen-clear") return false;   // pesan untuk dokumen offscreen, bukan untuk kita
   (async () => {
     const h = handlers[msg?.type];
     if (!h) return { ok: false, error: "unknown" };
     if (!PUBLIC.has(msg.type) && !fromExtensionPage(sender)) return { ok: false, error: "forbidden" };
     if (NEEDS_UNLOCKED.has(msg.type) && (await isLocked())) return { ok: false, error: "locked" };
-    return h(msg);
-  })().then(sendResponse, (e) => sendResponse({ ok: false, error: String(e && e.message || e) }));
+    return h(msg, sender);
+  })().then(sendResponse, (e) => sendResponse({ ok: false, error: String((e && e.message) || e) }));
   return true;   // jawaban async
 });

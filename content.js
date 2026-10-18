@@ -7,7 +7,8 @@
 
   const HIDE_ID = "__browser_lock_hide";
   const HOST_ATTR = "data-browser-lock";
-  let locked = false, host = null, observer = null, savedTitle = null, bodyWasInert = null;
+  let locked = false, host = null, hostSite = undefined, hostKey = undefined, hostTab = false, observer = null, savedTitle = null, bodyWasInert = null;
+  let ui = { title: "Browser terkunci", sub: "Masukkan password untuk membuka semua tab.", btn: "Masukkan password", hint: "Atau klik ikon gembok di toolbar Chrome.", siteTitle: "Situs ini terkunci", siteSub: "Masukkan password untuk membuka situs ini.", tabTitle: "Tab ini terkunci", tabSub: "Masukkan password untuk membuka tab ini. Tab lain tidak terpengaruh." };
 
   // 1) segera sembunyikan halaman sampai status diketahui, supaya tidak ada kilatan isi halaman
   const hider = document.createElement("style");
@@ -28,7 +29,9 @@
     return `<svg viewBox="0 0 16 16" width="112" height="112" shape-rendering="crispEdges" aria-hidden="true">${rects.join("")}</svg>`;
   }
 
-  function build() {
+  const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+  function build(site, tabMode) {
     const el = document.createElement("div");
     el.setAttribute(HOST_ATTR, "");
     const root = el.attachShadow({ mode: "closed" });   // halaman web tidak bisa membaca isi layar kunci
@@ -61,15 +64,15 @@
           .card{background:#2a2834;border-color:#000;box-shadow:7px 7px 0 #000}p,small{color:#b5adc4}
         }
       </style>
-      <div class="wrap" role="dialog" aria-modal="true" aria-label="Browser terkunci">
+      <div class="wrap" role="dialog" aria-modal="true" aria-label="${esc(tabMode ? ui.tabTitle : site ? ui.siteTitle : ui.title)}">
        <div class="col">
         <div class="clock"><div class="time" id="time"></div><div class="date" id="date"></div></div>
         <div class="card">
           ${lockSvg()}
-          <h1>Browser terkunci</h1>
-          <p>Masukkan password untuk membuka semua tab.</p>
-          <button type="button" id="open">Masukkan password</button>
-          <small>Atau klik ikon gembok di toolbar Chrome.</small>
+          <h1>${esc(tabMode ? ui.tabTitle : site ? ui.siteTitle : ui.title)}</h1>
+          <p>${esc(tabMode ? ui.tabSub : site ? ui.siteSub : ui.sub)}</p>
+          <button type="button" id="open">${esc(ui.btn)}</button>
+          <small>${esc(ui.hint)}</small>
         </div>
        </div>
       </div>`;
@@ -80,28 +83,31 @@
     };
     tick(); el.__clock = setInterval(tick, 10_000);
     const btn = root.getElementById("open");
-    const ask = () => { try { chrome.runtime.sendMessage({ type: "openLockWindow" }); } catch { /* ekstensi sedang dimuat ulang */ } };
+    const ask = () => { try { chrome.runtime.sendMessage({ type: "openLockWindow", site: site || null, tab: !!tabMode }); } catch { /* ekstensi sedang dimuat ulang */ } };
     btn.addEventListener("click", ask);
     root.addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
     setTimeout(() => btn.focus(), 0);
     return el;
   }
 
-  function ensureHost() {
-    if (!host) host = build();
+  function ensureHost(site, tabMode) {
+    const key = `${site || ""}|${tabMode ? 1 : 0}`;
+    if (host && hostKey !== key) { clearInterval(host.__clock); host.remove(); host = null; }   // jenis kunci berubah (browser <-> situs): bangun ulang
+    if (!host) { host = build(site, tabMode); hostSite = site; hostKey = key; }
     if (!host.isConnected) (document.documentElement || document).appendChild(host);
     if (document.body && bodyWasInert === null) { bodyWasInert = document.body.inert; document.body.inert = true; }   // tidak bisa difokus lewat Tab
   }
 
-  function show() {
+  function show(site = null, tabMode = false) {
     locked = true;
     if (!document.getElementById(HIDE_ID)) (document.documentElement || document).appendChild(hider);
-    ensureHost();
+    hostTab = tabMode;
+    ensureHost(site, tabMode);
     if (savedTitle === null) { savedTitle = document.title; }
-    document.title = "🔒 Terkunci";
+    document.title = "🔒";
     document.querySelectorAll("video,audio").forEach((m) => { try { m.pause(); } catch { /* abaikan */ } });
     if (!observer) {
-      observer = new MutationObserver(() => { if (locked) ensureHost(); });   // dipasang lagi kalau dihapus
+      observer = new MutationObserver(() => { if (locked) ensureHost(hostSite, hostTab); });   // dipasang lagi kalau dihapus
       observer.observe(document, { childList: true, subtree: false });
       observer.observe(document.documentElement, { childList: true });
     }
@@ -110,16 +116,16 @@
   function hide() {
     locked = false;
     if (observer) { observer.disconnect(); observer = null; }
-    if (host) { clearInterval(host.__clock); host.remove(); host = null; }
+    if (host) { clearInterval(host.__clock); host.remove(); host = null; hostSite = undefined; hostKey = undefined; }
     hider.remove();
     if (document.body && bodyWasInert !== null) document.body.inert = bodyWasInert;
     bodyWasInert = null;
     if (savedTitle !== null) { document.title = savedTitle; savedTitle = null; }
   }
 
+  // service worker menyuruh hitung ulang (kunci/buka/aturan situs berubah)
   chrome.runtime.onMessage.addListener((msg, _s, reply) => {
-    if (msg?.type === "lock") { show(); reply({ ok: true }); }
-    else if (msg?.type === "unlock") { hide(); reply({ ok: true }); }
+    if (msg?.type === "refresh") { init(); reply({ ok: true }); }
     return false;
   });
 
@@ -127,7 +133,8 @@
   async function init(attempt = 0) {
     try {
       const st = await chrome.runtime.sendMessage({ type: "getState" });
-      if (st && st.locked) show(); else hide();
+      if (st && st.ui) ui = st.ui;
+      if (st && st.pageLocked) show(st.site, !!st.tabLocked); else hide();
     } catch {
       if (attempt < 10) setTimeout(() => init(attempt + 1), 300); else hide();
     }

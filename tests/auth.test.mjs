@@ -119,13 +119,47 @@ test("buat ulang kode pemulihan: kode lama mati", async () => {
   assert.equal((await v.recover(second.recoveryCode, "password-baru-5")).ok, true);
 });
 
-test("pengaturan: nilai tak valid ditolak", async () => {
+test("pengaturan: bawaan, nilai tak valid ditolak, aturan situs dirapikan", async () => {
   const v = new Vault(memStore());
-  assert.deepEqual(await v.getSettings(), { autoLockMin: 5, lockOnScreenLock: true });
-  await v.setSettings({ autoLockMin: 15, lockOnScreenLock: false });
-  assert.deepEqual(await v.getSettings(), { autoLockMin: 15, lockOnScreenLock: false });
-  await v.setSettings({ autoLockMin: 7, lockOnScreenLock: "ya" });   // tidak valid, diabaikan
-  assert.deepEqual(await v.getSettings(), { autoLockMin: 15, lockOnScreenLock: false });
+  assert.deepEqual(await v.getSettings(), { autoLockMin: 5, lockOnScreenLock: true, siteLocks: [], lang: "id", panicMinimize: true, panicClipboard: true });
+  await v.setSettings({ autoLockMin: 15, lockOnScreenLock: false, lang: "en", panicClipboard: false });
+  let s = await v.getSettings();
+  assert.deepEqual([s.autoLockMin, s.lockOnScreenLock, s.lang, s.panicClipboard], [15, false, "en", false]);
+  await v.setSettings({ autoLockMin: 7, lockOnScreenLock: "ya", lang: "fr", panicMinimize: "x" });   // semua tidak valid, diabaikan
+  s = await v.getSettings();
+  assert.deepEqual([s.autoLockMin, s.lockOnScreenLock, s.lang, s.panicMinimize], [15, false, "en", true]);
+  await v.setSettings({ siteLocks: [{ host: "https://www.Mail.Google.com/inbox", minutes: 15 }, { host: "mail.google.com", minutes: 5 }, { host: "bukan host!", minutes: 5 }, { host: "bank.co.id", minutes: 99 }] });
+  assert.deepEqual((await v.getSettings()).siteLocks, [{ host: "mail.google.com", minutes: 15 }, { host: "bank.co.id", minutes: 15 }]);
+});
+
+test("catatan percobaan gagal: terisi, ada jumlah belum dilihat, bisa ditandai dan dihapus, dibatasi 50", async () => {
+  const v = new Vault(memStore());
+  await v.setInitialPassword("catat-ini-aja-1");
+  const t = 9_000_000;
+  await v.tryUnlock("salah1", t); await v.recover("AAAA-AAAA-AAAA-AAAA-AAAA", "password-xyz-1", t + 1000);
+  await v.failAttempt(t + 2000, "biometric");
+  let a = await v.getAttempts();
+  assert.deepEqual(a.log.map((e) => e.k), ["password", "recovery", "biometric"]);
+  assert.equal(a.unseen, 3);
+  assert.equal(a.log[0].t, t);
+  await v.markSeen();
+  a = await v.getAttempts();
+  assert.equal(a.unseen, 0); assert.equal(a.log.length, 3);
+  await v.clearLog();
+  assert.deepEqual(await v.getAttempts(), { log: [], unseen: 0 });
+  for (let i = 0; i < 70; i++) await v.failAttempt(t + 10_000 + i, "password");
+  a = await v.getAttempts();
+  assert.equal(a.log.length, 50); assert.equal(a.unseen, 50);
+});
+
+test("percobaan berhasil tidak masuk catatan gagal, dan mereset penundaan", async () => {
+  const v = new Vault(memStore());
+  await v.setInitialPassword("berhasil-ya-1");
+  for (let i = 0; i < 5; i++) await v.tryUnlock("salah", 1_000 + i);
+  assert.ok((await v.gate(2_000)).throttled);
+  await v.clearFails();
+  assert.equal(await v.gate(2_000), null);
+  assert.equal((await v.getAttempts()).log.length, 5);
 });
 
 test("tryUnlock tanpa password terpasang", async () => {

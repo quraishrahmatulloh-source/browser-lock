@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Browser Lock</title>
   <link rel="stylesheet" href="ui.css">
-  <style>html{width:380px}.page{min-height:0;padding:10px}.card{padding:22px 20px}</style>
+  <style>html{width:380px}.page{min-height:0;padding:10px}.card{padding:22px 20px}.stack{display:grid;gap:10px}</style>
 </head>
 <body>
 <main class="page">
@@ -15,10 +15,15 @@
       <h1>Browser Lock</h1>
       <p><span class="badge" id="state">…</span></p>
     </div>
-    <p class="muted hidden" id="setupNote">Belum ada password. Atur dulu supaya Chrome terkunci saat dibuka.</p>
-    <button class="btn hidden" id="lock" type="button">🔒 Kunci sekarang</button>
-    <p class="muted hidden" id="hint" style="text-align:center">atau tekan <span class="kbd">⌘</span> <span class="kbd">Shift</span> <span class="kbd">L</span></p>
-    <button class="btn line" id="settings" type="button">⚙ Pengaturan</button>
+    <div class="alert hidden" id="alert"><span id="alertText"></span><button type="button" id="seen" data-i18n="p.seen">Tandai sudah dilihat</button></div>
+    <p class="muted hidden" id="setupNote" data-i18n="p.setupNote"></p>
+    <div class="stack">
+      <button class="btn hidden" id="lockTab" type="button" data-i18n="p.lockTab">🔒 Kunci tab ini saja</button>
+      <button class="btn line hidden" id="lock" type="button" data-i18n="p.lock">🔒 Kunci semua</button>
+      <p class="muted hidden" id="hint" style="text-align:center"></p>
+      <button class="btn line hidden" id="panic" type="button" data-i18n="p.panic">🚨 Tombol panik</button>
+      <button class="btn line" id="settings" type="button" data-i18n="p.settings">⚙ Pengaturan</button>
+    </div>
     <p class="foot" id="foot"></p>
   </section>
 </main>

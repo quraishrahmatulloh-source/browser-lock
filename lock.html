@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Browser terkunci</title>
+  <title>Browser Lock</title>
   <link rel="stylesheet" href="ui.css">
 </head>
 <body>
@@ -11,47 +11,48 @@
   <section class="card" id="card">
     <div class="hero">
       <img id="icon" src="icons/icon128.png" alt="">
-      <h1 id="title">Browser terkunci</h1>
-      <p class="muted" id="sub">Masukkan password untuk membuka.</p>
+      <h1 id="title" data-i18n="lock.title">Browser terkunci</h1>
+      <p class="muted" id="sub" data-i18n="lock.sub">Masukkan password untuk membuka.</p>
     </div>
 
     <!-- buka kunci -->
     <form id="unlockForm" autocomplete="off" novalidate>
-      <label class="field">Password
+      <label class="field"><span data-i18n="lock.pw">Password</span>
         <span class="pw">
           <input type="password" id="pw" autocomplete="current-password" autofocus required>
-          <button type="button" id="eye" aria-label="Tampilkan password" aria-pressed="false">👁</button>
+          <button type="button" id="eye" data-i18n-aria="lock.show" aria-label="Tampilkan password" aria-pressed="false">👁</button>
         </span>
       </label>
       <p class="msg" id="msg" role="alert" aria-live="polite"></p>
-      <button class="btn" id="go" type="submit" style="width:100%">Buka kunci</button>
-      <p class="foot"><button type="button" class="link" id="forgot">Lupa password?</button></p>
+      <button class="btn" id="go" type="submit" style="width:100%" data-i18n="lock.go">Buka kunci</button>
+      <button class="btn line hidden" id="bio" type="button" style="width:100%;margin-top:10px"><span aria-hidden="true">☝</span> <span data-i18n="lock.bio">Buka dengan Touch ID</span></button>
+      <p class="foot"><button type="button" class="link" id="forgot" data-i18n="lock.forgot">Lupa password?</button></p>
     </form>
 
     <!-- lupa password -->
     <form id="recoverForm" class="hidden" autocomplete="off" novalidate>
-      <p class="muted">Masukkan kode pemulihan yang lo simpan saat membuat password, lalu pilih password baru.</p>
-      <label class="field">Kode pemulihan
+      <p class="muted" data-i18n="rec.intro">Masukkan kode pemulihan yang lo simpan saat membuat password, lalu pilih password baru.</p>
+      <label class="field"><span data-i18n="rec.code">Kode pemulihan</span>
         <input type="text" id="rcode" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" autocapitalize="characters">
       </label>
-      <label class="field">Password baru
+      <label class="field"><span data-i18n="rec.new">Password baru</span>
         <input type="password" id="np1" autocomplete="new-password">
       </label>
-      <label class="field">Ulangi password baru
+      <label class="field"><span data-i18n="rec.again">Ulangi password baru</span>
         <input type="password" id="np2" autocomplete="new-password">
       </label>
       <p class="msg" id="rmsg" role="alert" aria-live="polite"></p>
-      <button class="btn" id="rgo" type="submit" style="width:100%">Pulihkan dan buka</button>
-      <p class="foot"><button type="button" class="link" id="back">Kembali</button></p>
+      <button class="btn" id="rgo" type="submit" style="width:100%" data-i18n="rec.go">Pulihkan dan buka</button>
+      <p class="foot"><button type="button" class="link" id="back" data-i18n="rec.back">Kembali</button></p>
     </form>
 
     <!-- kode pemulihan baru -->
     <section id="newCode" class="hidden">
-      <p class="muted">Password baru aktif. Ini kode pemulihan baru lo. <b>Simpan sekarang</b>, kode ini tidak akan ditampilkan lagi.</p>
+      <p class="muted" data-i18n-html="rec.done.text">Password baru aktif. Ini kode pemulihan baru lo. <b>Simpan sekarang</b>, kode ini tidak akan ditampilkan lagi.</p>
       <div class="code" id="codeText"></div>
       <div class="row" style="margin-top:12px">
-        <button class="btn line grow" id="copy" type="button">Salin</button>
-        <button class="btn grow" id="done" type="button">Sudah gua simpan</button>
+        <button class="btn line grow" id="copy" type="button" data-i18n="rec.copy">Salin</button>
+        <button class="btn grow" id="done" type="button" data-i18n="rec.saved">Sudah gua simpan</button>
       </div>
     </section>
 
