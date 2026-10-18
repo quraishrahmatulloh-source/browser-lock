@@ -12,7 +12,7 @@
     <div class="hero">
       <img src="icons/icon128.png" alt="">
       <h1>Browser Lock</h1>
-      <p class="muted" id="sub"></p>
+      <p class="status-line"><span class="badge" id="badge">…</span><span class="muted" id="sub"></span></p>
     </div>
 
     <!-- pertama kali: buat password -->
@@ -43,9 +43,9 @@
     </section>
 
     <!-- pengaturan -->
-    <div id="main" class="hidden" style="display:grid;gap:16px">
+    <div id="main" class="hidden grid2">
       <div class="box">
-        <h2>Kunci otomatis</h2>
+        <h2 class="sec-title"><span class="ic">⏱</span>Kunci otomatis</h2>
         <label class="field">Kunci kalau komputer tidak dipakai selama
           <select id="auto">
             <option value="0">Tidak pernah</option>
@@ -54,12 +54,13 @@
           </select>
         </label>
         <label class="check"><input type="checkbox" id="onScreen"> <span>Kunci juga saat layar komputer dikunci</span></label>
-        <p class="muted">Chrome selalu terkunci saat dibuka ulang. Pintasan kunci cepat: <b>Ctrl+Shift+L</b> (Mac: <b>⌘+Shift+L</b>), bisa diubah di <b>chrome://extensions/shortcuts</b>.</p>
+        <p class="muted">Chrome selalu terkunci saat dibuka ulang. Kunci cepat: <span class="kbd">Ctrl</span> <span class="kbd">Shift</span> <span class="kbd">L</span> (Mac: <span class="kbd">⌘</span> <span class="kbd">Shift</span> <span class="kbd">L</span>). Ubah di <b>chrome://extensions/shortcuts</b>.</p>
         <p class="msg" id="amsg" role="status" aria-live="polite"></p>
+        <button class="btn" id="lockNow" type="button">🔒 Kunci sekarang</button>
       </div>
 
       <form class="box" id="change" autocomplete="off" novalidate>
-        <h2>Ganti password</h2>
+        <h2 class="sec-title"><span class="ic">🔑</span>Ganti password</h2>
         <label class="field">Password sekarang <input type="password" id="c0" autocomplete="current-password"></label>
         <label class="field">Password baru <input type="password" id="c1" autocomplete="new-password"></label>
         <label class="field">Ulangi password baru <input type="password" id="c2" autocomplete="new-password"></label>
@@ -68,7 +69,7 @@
       </form>
 
       <form class="box" id="regen" autocomplete="off" novalidate>
-        <h2>Kode pemulihan baru</h2>
+        <h2 class="sec-title"><span class="ic">🆘</span>Kode pemulihan baru</h2>
         <p class="muted">Bikin kode baru. Kode lama langsung tidak berlaku.</p>
         <label class="field">Password sekarang <input type="password" id="r0" autocomplete="current-password"></label>
         <p class="msg" id="rmsg" role="alert" aria-live="polite"></p>
@@ -76,15 +77,13 @@
       </form>
 
       <div class="box">
-        <h2>Batasan yang perlu lo tahu</h2>
+        <h2 class="sec-title"><span class="ic">⚠</span>Batasan yang perlu lo tahu</h2>
         <ul class="muted" style="margin:0;padding-left:20px;display:grid;gap:6px">
-          <li>Ekstensi bisa dimatikan atau dihapus lewat <b>chrome://extensions</b>. Browser Lock menutup tab, tapi bukan pengaman tingkat sistem. Untuk komputer bersama, tambahkan kunci layar komputer.</li>
-          <li>Mode Incognito dan profil Chrome lain tidak tercakup. Untuk Incognito, aktifkan <b>Izinkan di Incognito</b> di halaman detail ekstensi.</li>
-          <li>Lupa password dan kode pemulihan: satu-satunya jalan adalah menghapus ekstensi dan memasangnya lagi (semua pengaturan hilang).</li>
+          <li>Ekstensi bisa dimatikan atau dihapus lewat <b>chrome://extensions</b>. Browser Lock menutup tab, bukan pengaman tingkat sistem. Untuk komputer bersama, tambahkan kunci layar komputer.</li>
+          <li>Incognito dan profil Chrome lain tidak tercakup. Untuk Incognito, aktifkan <b>Izinkan di Incognito</b> di detail ekstensi, dan pasang ekstensi ini di tiap profil.</li>
+          <li>Lupa password dan kode pemulihan: satu-satunya jalan menghapus ekstensi dan memasangnya lagi.</li>
         </ul>
       </div>
-
-      <button class="btn" id="lockNow" type="button">🔒 Kunci sekarang</button>
     </div>
 
     <p class="foot" id="foot"></p>

@@ -1,7 +1,9 @@
 // Halaman kunci. Dipakai di 3 tempat: jendela popup (mode=window), tab pengganti halaman chrome:// (mode=tab), dan popup toolbar (mode=popup).
 const $ = (id) => document.getElementById(id);
 const mode = new URLSearchParams(location.search).get("mode") || "tab";
+import { attachMeter } from "./strength.js";
 const send = (msg) => chrome.runtime.sendMessage(msg);
+attachMeter($("np1"));
 
 let timer = null;
 document.body.dataset.mode = mode;
@@ -28,6 +30,15 @@ function throttle(ms, msgEl, inputs, button) {
     setMsg(msgEl, `Terlalu banyak percobaan. Coba lagi dalam ${fmt(left)}.`);
   };
   tick(); timer = setInterval(tick, 500);
+}
+
+/** Gembok terbuka + kilau hijau, lalu bereskan layar kunci. */
+async function celebrate() {
+  const icon = $("icon"), card = $("card");
+  icon.src = "icons/open128.png"; icon.classList.add("pop"); card.classList.add("ok");
+  $("title").textContent = "Terbuka"; $("sub").textContent = "";
+  await new Promise((r) => setTimeout(r, matchMedia("(prefers-reduced-motion: reduce)").matches ? 150 : 700));
+  await send({ type: "finishUnlock" });
 }
 
 function afterUnlock() {
@@ -70,10 +81,13 @@ $("unlockForm").addEventListener("submit", async (e) => {
   const pw = $("pw").value;
   if (!pw) { setMsg($("msg"), "Isi password dulu."); return; }
   $("go").disabled = true; setMsg($("msg"), "Memeriksa…", "ok");
-  const r = await send({ type: "unlock", password: pw });
+  const r = await send({ type: "unlock", password: pw, defer: true });
   $("go").disabled = false;
-  if (r.ok) { $("pw").value = ""; setMsg($("msg"), "Terbuka ✓", "ok"); afterUnlock(); return; }
-  $("pw").value = ""; shake();
+  if (r.ok) {
+    $("pw").value = ""; $("unlockForm").classList.add("hidden");
+    await celebrate(); afterUnlock(); return;
+  }
+  $("pw").value = ""; shake(); $("card").classList.add("bad"); setTimeout(() => $("card").classList.remove("bad"), 1200);
   if (r.retryIn) throttle(r.retryIn, $("msg"), [$("pw")], $("go"));
   else {
     setMsg($("msg"), r.triesLeft ? `Password salah. ${r.triesLeft} percobaan lagi sebelum dikunci sementara.` : "Password salah.");

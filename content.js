@@ -38,8 +38,16 @@
         .wrap{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;
           background:#fff8ec radial-gradient(#eadfc8 1.4px,transparent 1.5px) 0 0/22px 22px;
           font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",sans-serif;color:#111}
+        .col{display:grid;justify-items:center;gap:22px}
+        .clock{display:grid;justify-items:center;gap:2px;text-align:center}
+        .time{font:800 64px/1 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:-.02em}
+        .date{color:#555;font-size:15px;font-weight:600}
         .card{display:grid;justify-items:center;gap:14px;padding:34px 38px;max-width:min(420px,90vw);text-align:center;
-          background:#fff;border:3px solid #111;border-radius:22px;box-shadow:7px 7px 0 #111}
+          background:#fff;border:3px solid #111;border-radius:22px;box-shadow:7px 7px 0 #111;animation:rise .32s cubic-bezier(.2,.9,.3,1.15) both}
+        .card svg{animation:bob 2.4s steps(4) infinite}
+        @keyframes rise{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+        @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+        @media (prefers-reduced-motion:reduce){.card,.card svg{animation:none}}
         h1{margin:0;font-size:26px;letter-spacing:-.01em}
         p{margin:0;color:#555;font-size:15px;line-height:1.4}
         button{margin-top:6px;padding:13px 26px;font:700 16px/1 inherit;font-family:inherit;color:#111;cursor:pointer;
@@ -54,6 +62,8 @@
         }
       </style>
       <div class="wrap" role="dialog" aria-modal="true" aria-label="Browser terkunci">
+       <div class="col">
+        <div class="clock"><div class="time" id="time"></div><div class="date" id="date"></div></div>
         <div class="card">
           ${lockSvg()}
           <h1>Browser terkunci</h1>
@@ -61,7 +71,14 @@
           <button type="button" id="open">Masukkan password</button>
           <small>Atau klik ikon gembok di toolbar Chrome.</small>
         </div>
+       </div>
       </div>`;
+    const tick = () => {
+      const d = new Date();
+      root.getElementById("time").textContent = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      root.getElementById("date").textContent = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+    };
+    tick(); el.__clock = setInterval(tick, 10_000);
     const btn = root.getElementById("open");
     const ask = () => { try { chrome.runtime.sendMessage({ type: "openLockWindow" }); } catch { /* ekstensi sedang dimuat ulang */ } };
     btn.addEventListener("click", ask);
@@ -93,7 +110,7 @@
   function hide() {
     locked = false;
     if (observer) { observer.disconnect(); observer = null; }
-    if (host) { host.remove(); host = null; }
+    if (host) { clearInterval(host.__clock); host.remove(); host = null; }
     hider.remove();
     if (document.body && bodyWasInert !== null) document.body.inert = bodyWasInert;
     bodyWasInert = null;

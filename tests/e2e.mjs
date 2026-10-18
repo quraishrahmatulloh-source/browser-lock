@@ -27,9 +27,10 @@ async function conn(wsUrl) {
   const ws = new WebSocket(wsUrl); let id = 0; const pend = new Map(); const ctxs = [];
   ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && pend.has(d.id)) pend.get(d.id)(d); if (d.method === "Runtime.executionContextCreated") ctxs.push(d.params.context); };
   await new Promise((r) => (ws.onopen = r));
-  const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+  const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); setTimeout(() => { if (pend.delete(i)) r({ result: undefined, timeout: method }); }, 8000); });
   await send("Runtime.enable");
-  const ev = async (expression, contextId) => { const r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, ...(contextId ? { contextId } : {}) }); if (r.result.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text)); return r.result.result.value; };
+  const ev = async (expression, contextId) => { const r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, ...(contextId ? { contextId } : {}) }); if (!r.result) return undefined;   // konteks hilang karena halaman dialihkan (perilaku yang benar saat dikunci)
+    if (r.result.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text)); return r.result.result.value; };
   return { send, ev, ctxs, close: () => ws.close() };
 }
 const target = (pred) => until(async () => (await list()).find((t) => t.type === "page" && pred(t)));
@@ -64,6 +65,8 @@ async function ext(extId, msg) {
   const c = await conn(t.webSocketDebuggerUrl);
   try { return await send(c, msg); } finally { c.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${t.id}`).catch(() => {}); }
 }
+
+const noLockTabs = () => until(async () => !(await list()).some((t) => t.type === "page" && t.url.includes("/lock.html")), 8000);
 
 async function main() {
   launch();
@@ -103,7 +106,7 @@ async function main() {
   ok("pengaturan auto-lock tersimpan (15 menit)", st.autoLockMin === 15 && st.lockOnScreenLock === true, JSON.stringify(st));
 
   // ---- 4. kunci sekarang ----
-  await send(opt, { type: "lockNow" });
+  await ext(extId, { type: "lockNow" });
   c = await until(async () => { const r = await covered(page); return r.host ? r : null; });
   ok("halaman tertutup dan isinya disembunyikan saat terkunci", !!c && c.vis === "hidden" && c.title === "🔒 Terkunci", JSON.stringify(c));
   const bodyText = await page.ev("document.getElementById('x').innerText");
@@ -140,6 +143,7 @@ async function main() {
   ok("password benar membuka halaman (overlay hilang, judul kembali)", !!c && c.vis === "visible" && c.title === "Halaman Uji", JSON.stringify(c));
   const back = await until(async () => (await list()).find((t) => t.id === ntp.id && !t.url.includes("lock.html")));
   ok("tab chrome://newtab dikembalikan setelah unlock", !!back, back?.url);
+  ok("tab layar kunci lama tertutup setelah unlock", !!(await noLockTabs()));
 
   // ---- 8. lupa password: pemulihan ----
   await ext(extId, { type: "lockNow" });
@@ -152,9 +156,11 @@ async function main() {
   await fill(l2, "#rcode", code.toLowerCase()); await submit(l2, "#recoverForm");
   const code2 = await until(async () => { const t = await text(l2, "#codeText"); return /^[A-Z0-9]{4}(-[A-Z0-9]{4}){4}$/.test(t) ? t : null; });
   ok("pemulihan berhasil dan kode baru tampil, berbeda dari yang lama", !!code2 && code2 !== code, String(code2));
+  if (!code2) console.log("  [diagnosa] teks halaman:", JSON.stringify((await l2.ev("document.body.innerText")) || "").slice(0, 400), "| url:", await l2.ev("location.href"), "| targets:", (await list()).filter((t) => t.type === "page").map((t) => t.url.slice(0, 70)).join(" ; "));
   ok("layar kunci TIDAK tertutup sebelum kode baru dibaca", (await list()).some((t) => t.url.includes("lock.html")));
   ok("halaman sudah terbuka setelah pemulihan", !(await covered(page)).host);
   await l2.ev("document.getElementById('done').click()");
+  await noLockTabs();
   await ext(extId, { type: "lockNow" });
   await until(async () => (await covered(page)).host);
   const lt2 = await target((t) => t.url.includes(`${extId}/lock.html`));

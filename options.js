@@ -1,5 +1,7 @@
 const $ = (id) => document.getElementById(id);
+import { attachMeter } from "./strength.js";
 const send = (msg) => chrome.runtime.sendMessage(msg);
+["s1", "c1"].forEach((id) => attachMeter($(id)));
 $("foot").innerHTML = `<b>madebyuloh</b> · v${chrome.runtime.getManifest().version}`;
 
 function setMsg(el, text, kind = "err") { el.textContent = text; el.className = "msg " + (text ? kind : ""); }
@@ -18,11 +20,13 @@ async function render() {
   const st = await send({ type: "getState" });
   hide("setup"); hide("codeBox"); hide("main");
   if (!st.hasPassword) {
+    $("badge").textContent = "Belum aktif"; $("badge").classList.add("off");
     $("sub").textContent = "Atur password untuk mengaktifkan kunci.";
     show("setup"); $("s1").focus(); return;
   }
   if (st.locked) { location.replace("lock.html?mode=tab"); return; }   // pengaturan hanya saat terbuka
-  $("sub").textContent = "Browser Lock aktif.";
+  $("badge").textContent = "Aktif"; $("badge").classList.remove("off");
+  $("sub").textContent = "Chrome terkunci setiap dibuka.";
   const s = await send({ type: "getSettings" });
   $("auto").value = String(s.autoLockMin);
   $("onScreen").checked = s.lockOnScreenLock;

@@ -10,7 +10,8 @@ async function init() {
     $("settings").textContent = "Atur password"; $("settings").classList.remove("line");
   } else {
     $("state").textContent = "Terbuka";
-    $("lock").classList.remove("hidden");
+    $("lock").classList.remove("hidden"); $("hint").classList.remove("hidden");
+    if (!/Mac/i.test(navigator.platform)) $("hint").innerHTML = 'atau tekan <span class="kbd">Ctrl</span> <span class="kbd">Shift</span> <span class="kbd">L</span>';
   }
 }
 

@@ -25,7 +25,7 @@ Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 
 ## Batasan (jujur)
 - Ini **penutup tingkat browser**, bukan pengaman sistem. Ekstensi bisa dimatikan atau dihapus lewat `chrome://extensions`. Untuk komputer bersama, tambahkan kunci layar komputer.
-- **Incognito** dan **profil Chrome lain** tidak tercakup. Untuk Incognito aktifkan *Izinkan di Incognito* di detail ekstensi.
+- **Incognito** dan **profil Chrome lain** tidak tercakup. Untuk Incognito aktifkan *Izinkan di Incognito* di detail ekstensi. Menu profil dan pemilih profil adalah antarmuka bawaan Chrome yang tidak bisa dijangkau ekstensi, jadi tidak bisa dikunci. Pasang Browser Lock di setiap profil yang mau dikunci.
 - Halaman `chrome://` dan Web Store tidak bisa ditutup overlay. Tab itu dialihkan ke halaman kunci lalu dikembalikan setelah unlock.
 - File `file://` hanya tertutup kalau *Allow access to file URLs* diaktifkan untuk ekstensi.
 - Lupa password **dan** kode pemulihan: satu-satunya jalan menghapus ekstensi lalu memasangnya lagi.
@@ -34,7 +34,7 @@ Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
 ## Uji
 ```bash
 node --test tests/auth.test.mjs                         # 13 uji logika password (Node 20+)
-CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 35 uji end-to-end di Chrome sungguhan (~45 dtk)
+CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 36 uji end-to-end di Chrome sungguhan (~45 dtk)
 ```
 Uji end-to-end butuh [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/), karena Chrome biasa (137+) menonaktifkan `--load-extension`.
 Ikon dibuat ulang dengan `python3 tools/make_icons.py` (butuh Pillow).

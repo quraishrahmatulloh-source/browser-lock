@@ -139,9 +139,13 @@ const handlers = {
   },
   async openLockWindow() { await openLockWindow(); return { ok: true }; },
 
-  async unlock({ password }) {
+  async unlock({ password, defer }) {
     const r = await vault.tryUnlock(password);
-    if (r.ok) { await markUnlocked(); await finishUnlockUi(); }
+    if (r.ok) {
+      await markUnlocked();
+      if (defer) setTimeout(async () => { if (await isUnlocked()) await finishUnlockUi(); }, 1800);   // jaga-jaga layar kunci tidak memanggil finishUnlock; dilewati kalau sudah dikunci lagi
+      else await finishUnlockUi();
+    }
     return r;
   },
   async lockNow() { await lockNow(); return { ok: true }; },
