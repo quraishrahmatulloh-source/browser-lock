@@ -121,7 +121,7 @@ test("buat ulang kode pemulihan: kode lama mati", async () => {
 
 test("pengaturan: bawaan, nilai tak valid ditolak, aturan situs dirapikan", async () => {
   const v = new Vault(memStore());
-  assert.deepEqual(await v.getSettings(), { autoLockMin: 5, lockOnScreenLock: true, siteLocks: [], lang: "id", panicMinimize: true, panicClipboard: true });
+  assert.deepEqual(await v.getSettings(), { autoLockMin: 5, lockOnScreenLock: true, siteLocks: [], lang: "en", panicMinimize: true, panicClipboard: true });
   await v.setSettings({ autoLockMin: 15, lockOnScreenLock: false, lang: "en", panicClipboard: false });
   let s = await v.getSettings();
   assert.deepEqual([s.autoLockMin, s.lockOnScreenLock, s.lang, s.panicClipboard], [15, false, "en", false]);

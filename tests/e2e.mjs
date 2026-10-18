@@ -106,6 +106,7 @@ async function main() {
   ok("halaman pengaturan terbuka otomatis saat pertama dipasang", !!optT);
   const opt = await conn(optT.webSocketDebuggerUrl);
   ok("form buat password tampil", !!(await until(async () => visible(opt, "#setup"))));
+  await opt.ev("chrome.storage.local.set({ settings: { lang: 'id' } }).then(() => location.reload())"); await sleep(1500);   // tes memakai teks Indonesia; bawaan ekstensi sekarang English
   await fill(opt, "#s1", "pendek"); await fill(opt, "#s2", "pendek"); await submit(opt, "#setup");
   ok("password pendek ditolak", /minimal 8/.test(await until(async () => text(opt, "#smsg"))));
   await fill(opt, "#s1", "rahasia-satu-1"); await fill(opt, "#s2", "beda-sendiri-2"); await submit(opt, "#setup");

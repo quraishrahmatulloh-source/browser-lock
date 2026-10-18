@@ -9,7 +9,7 @@
   const HIDE_ID = "__browser_lock_hide";
   const HOST_ATTR = "data-browser-lock";
   let locked = false, host = null, hostSite = undefined, hostKey = undefined, hostTab = false, observer = null, savedTitle = null, bodyWasInert = null;
-  let ui = { lang: "id", title: "Browser terkunci", sub: "Masukkan password untuk membuka semua tab.", btn: "Masukkan password", hint: "Atau klik ikon gembok di toolbar Chrome.", siteTitle: "Situs ini terkunci", siteSub: "Masukkan password untuk membuka situs ini.", tabTitle: "Tab ini terkunci", tabSub: "Masukkan password untuk membuka tab ini. Tab lain tidak terpengaruh." };
+  let ui = { lang: "en", title: "Browser locked", sub: "Enter your password to unlock all tabs.", btn: "Enter password", hint: "Or click the padlock icon in the Chrome toolbar.", siteTitle: "This site is locked", siteSub: "Enter your password to open this site.", tabTitle: "This tab is locked", tabSub: "Enter your password to unlock this tab. Other tabs are unaffected." };
 
   // 1) segera sembunyikan halaman sampai status diketahui, supaya tidak ada kilatan isi halaman
   const hider = document.createElement("style");

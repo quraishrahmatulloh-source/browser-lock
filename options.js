@@ -5,7 +5,7 @@ import { bytesToB64u } from "./lib/webauthn.js";
 
 const $ = (id) => document.getElementById(id);
 const send = (msg) => chrome.runtime.sendMessage(msg);
-let T = makeT("id"), lang = "id", settings = null;
+let T = makeT("en"), lang = "en", settings = null;
 ["s1", "c1"].forEach((id) => attachMeter($(id)));
 $("foot").innerHTML = `<a href="https://faquloh.site" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none"><b>madebyuloh</b></a> · v${chrome.runtime.getManifest().version}`;
 

@@ -1,58 +1,58 @@
 # Browser Lock
 
-Ekstensi Chrome yang mengunci browser dengan password. Begitu Chrome dibuka, semua tab tertutup sampai password benar.
-Gratis, tanpa akun, tanpa internet. Semua data tersimpan di komputer.
+A Chrome extension that locks your browser with a password. When Chrome opens, every tab stays covered until the right password is entered.
+Free, no account, no internet. All data stays on your computer.
 
-## Fitur
-- **Terkunci setiap Chrome dibuka.** Semua tab disembunyikan dan jendela kunci muncul. Sesi tidak bertahan setelah Chrome ditutup.
-- **Kunci otomatis** saat komputer tidak dipakai (1 menit sampai 1 jam) dan saat layar komputer dikunci.
-- **Kunci semua** atau **kunci satu tab saja** (tab lain tetap terbuka; kunci menempel ke link, jadi link yang sama dibuka lagi setelah tab ditutup tetap terkunci): tombol di popup, atau `⌘/Ctrl+Shift+L` (semua) dan `⌘/Ctrl+Shift+Y` (tab ini).
-- **Touch ID / sidik jari** (opsional, WebAuthn). Password tetap jadi cadangan.
-- **Kunci per situs**: bank atau email minta password lagi walau Chrome terbuka, kedaluwarsa tiap 5/15/30/60 menit atau sampai Chrome ditutup.
-- **Tombol panik** `⌘/Ctrl+Shift+K`: kunci semua, kecilkan semua jendela, kosongkan clipboard.
-- **Catatan percobaan gagal** dengan lencana di ikon.
-- **Kode pemulihan** kalau lupa password.
-- Bahasa **Indonesia dan English**.
+## Features
+- **Locked every time Chrome opens.** Every tab is hidden and a lock screen appears. The session doesn't survive closing Chrome.
+- **Auto-lock** when the computer is idle (1 minute to 1 hour) and when the computer screen locks.
+- **Lock everything** or **lock one site/tab only**: the lock sticks to the web app (same origin), so it also covers other tabs of that site and reopening it after the tab is closed. Use the popup, or `⌘/Ctrl+Shift+L` (everything) and `⌘/Ctrl+Shift+Y` (this tab).
+- **Touch ID / fingerprint** (optional, WebAuthn). The password stays as a backup.
+- **Per-site lock**: your bank or email asks for the password again even while Chrome is unlocked, expiring every 5/15/30/60 minutes or when Chrome closes.
+- **Panic button** `⌘/Ctrl+Shift+K`: lock everything, minimize all windows, clear the clipboard.
+- **Failed-attempt log** with a badge on the icon.
+- **Recovery code** in case you forget the password.
+- **English and Indonesian** (English is the default).
 
-## Pasang (belum lewat Chrome Web Store)
-1. Buka `chrome://extensions` lalu aktifkan **Developer mode** (kanan atas).
-2. Klik **Load unpacked** lalu pilih folder ini.
-3. Halaman pengaturan terbuka sendiri. Buat password dan **simpan kode pemulihannya**.
-4. Pin ikon gembok di toolbar (ikon puzzle → pin).
+## Install (not on the Chrome Web Store yet)
+1. Open `chrome://extensions` and turn on **Developer mode** (top right).
+2. Click **Load unpacked** and pick this folder.
+3. The settings page opens. Create a password and **save the recovery code**.
+4. Pin the padlock icon in the toolbar (puzzle icon → pin).
 
-## Keamanan
-- **Touch ID**: ekstensi tidak pernah menyentuh sidik jari. Sistem operasi yang memverifikasi, ekstensi cuma memeriksa tanda tangan WebAuthn (ES256) dengan tantangan sekali pakai, wajib ada verifikasi pengguna (UV), dan percobaan palsu dicatat serta dihitung ke pembatasan.
-- Password disimpan sebagai **PBKDF2-SHA256 (250.000 iterasi)** dengan salt acak, tidak pernah sebagai teks asli.
-- Percobaan salah dibatasi: 5 gratis, lalu tunggu 30 dtk, 1 mnt, 2 mnt, … maksimal 15 mnt. Berlaku juga untuk kode pemulihan.
-- **Password diketik langsung di halaman yang terkunci, tapi aman dari skrip situs.** Kotaknya ada di dalam iframe milik ekstensi (origin `chrome-extension://`), jadi skrip di situs tidak bisa membaca isinya maupun ketikannya (diuji dengan pengintai tombol di halaman: nol ketikan terbaca). Kalau iframe tidak bisa dimuat, kembali ke tombol yang membuka jendela milik ekstensi. "Lupa password?" selalu membuka jendela, supaya kode pemulihan baru tidak hilang saat layar kunci menutup.
-- Isi halaman **disembunyikan** (`visibility: hidden`), bukan sekadar ditutup, dan ditandai `inert` supaya tidak bisa difokus dengan Tab.
-- Aksi sensitif (buka kunci, ganti password, pengaturan) hanya diterima dari halaman ekstensi ini. Pesan dari skrip di halaman web ditolak.
-- Tidak ada permintaan jaringan, analitik, atau pelacakan. Kodenya semua di folder ini.
+## Security
+- **Touch ID**: the extension never touches your fingerprint. The operating system verifies it; the extension only checks the WebAuthn (ES256) signature against a one-time challenge, requires user verification (UV), and counts fake attempts toward rate limiting.
+- Passwords are stored as **PBKDF2-SHA256 (250,000 iterations)** with a random salt, never as plain text.
+- Wrong attempts are rate-limited: 5 free, then 30 s, 1 min, 2 min, … up to 15 min. Recovery codes are limited the same way.
+- **The password is typed right on the locked page, yet safe from site scripts.** The input lives in an extension-owned iframe (`chrome-extension://` origin), so scripts on the site can read neither its content nor the keystrokes (tested with a key-logger on the page: zero keystrokes read). If the iframe can't load, it falls back to a button that opens an extension-owned window. "Forgot password?" always opens a window so the new recovery code isn't lost when the lock screen closes.
+- Page content is **hidden** (`visibility: hidden`), not just covered, and marked `inert` so it can't be focused with Tab.
+- Sensitive actions (unlock, change password, settings) are only accepted from this extension's own pages. Messages from web-page scripts are rejected.
+- No network requests, analytics, or tracking. All code is in this folder.
 
-## Batasan (jujur)
-- Ini **penutup tingkat browser**, bukan pengaman sistem. Ekstensi bisa dimatikan atau dihapus lewat `chrome://extensions`. Untuk komputer bersama, tambahkan kunci layar komputer.
-- **Incognito** dan **profil Chrome lain** tidak tercakup. Untuk Incognito aktifkan *Izinkan di Incognito* di detail ekstensi. Menu profil dan pemilih profil adalah antarmuka bawaan Chrome yang tidak bisa dijangkau ekstensi, jadi tidak bisa dikunci. Pasang Browser Lock di setiap profil yang mau dikunci.
-- Halaman `chrome://` dan Web Store tidak bisa ditutup overlay. Tab itu dialihkan ke halaman kunci lalu dikembalikan setelah unlock.
-- File `file://` hanya tertutup kalau *Allow access to file URLs* diaktifkan untuk ekstensi.
-- Lupa password **dan** kode pemulihan: satu-satunya jalan menghapus ekstensi lalu memasangnya lagi.
-- Ekstensi meminta izin "baca dan ubah data di semua situs" karena harus menutup semua halaman. Ekstensi **tidak membaca** isi halaman. Silakan periksa `content.js`.
+## Limits (honest)
+- This is **browser-level cover**, not system-level protection. The extension can be disabled or removed at `chrome://extensions`. On a shared computer, also lock the computer screen.
+- **Incognito** and **other Chrome profiles** aren't covered. For Incognito, turn on *Allow in Incognito* in the extension details. The profile menu and profile picker are Chrome UI that extensions can't reach, so they can't be locked. Install Browser Lock in every profile you want locked.
+- `chrome://` pages and the Web Store can't be covered by an overlay. Those tabs are redirected to the lock page and restored after unlocking.
+- `file://` pages are only covered if *Allow access to file URLs* is on for the extension.
+- If you forget both the password **and** the recovery code, the only way is to remove the extension and install it again.
+- The extension asks for "read and change data on all sites" because it must cover every page. It **doesn't read** page content. Check `content.js`.
 
-## Uji
+## Tests
 ```bash
-node --test tests/*.test.mjs                            # 35 uji logika: password, kunci per situs, WebAuthn (Node 20+)
-CHROME_BIN="/path/ke/Google Chrome for Testing" node tests/e2e.mjs   # 89 uji end-to-end di Chrome sungguhan (~2 menit)
+node --test tests/*.test.mjs                            # logic tests: password, per-site lock, WebAuthn (Node 20+)
+CHROME_BIN="/path/to/Google Chrome for Testing" node tests/e2e.mjs   # end-to-end tests in a real Chrome (~2 min)
 ```
-Uji end-to-end butuh [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/), karena Chrome biasa (137+) menonaktifkan `--load-extension`.
-Ikon dibuat ulang dengan `python3 tools/make_icons.py` (butuh Pillow).
+End-to-end tests need [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/), because regular Chrome (137+) disables `--load-extension`.
+Icons are regenerated with `python3 tools/make_icons.py` (needs Pillow).
 
-## Struktur
-`background.js` service worker (status kunci, tab, auto-lock, panik) · `content.js` penutup halaman · `lib/auth.js` password dan catatan gagal · `lib/sites.js` kunci per situs · `lib/webauthn.js` verifikasi Touch ID · `lib/i18n.js` dua bahasa ·
-`lock.*` jendela kunci · `options.*` pengaturan · `popup.*` popup toolbar · `ui.css` gaya bersama.
+## Layout
+`background.js` service worker (lock state, tabs, auto-lock, panic) · `content.js` page cover · `lib/auth.js` password and failure log · `lib/sites.js` per-site lock · `lib/webauthn.js` Touch ID verification · `lib/i18n.js` two languages ·
+`lock.*` lock window · `options.*` settings · `popup.*` toolbar popup · `ui.css` shared styles.
 
 ## Chrome Web Store
-`PRIVACY.md` (kebijakan privasi), `store/LISTING.md` (deskripsi ID/EN dan justifikasi izin), dan `tools/package.sh` (membuat ZIP siap unggah).
+`PRIVACY.md` (privacy policy), `store/LISTING.md` (listing text and permission justifications), and `tools/package.sh` (builds the upload-ready ZIP).
 
-## Lisensi
-MIT, lihat [LICENSE](LICENSE). Font [Pixelify Sans](https://fonts.google.com/specimen/Pixelify+Sans) berlisensi SIL Open Font License 1.1.
+## License
+MIT, see [LICENSE](LICENSE). The [Pixelify Sans](https://fonts.google.com/specimen/Pixelify+Sans) font is licensed under the SIL Open Font License 1.1.
 
-Dibuat oleh [madebyuloh](https://faquloh.site).
+Made by [madebyuloh](https://faquloh.site).

@@ -9,7 +9,7 @@ export function score(p) {
   if (/^(.)\1+$/.test(p) || p.length < 8) s = Math.min(s, 1);
   return s;
 }
-const LABELS = ["", "Lemah", "Cukup", "Bagus", "Kuat"];
+const LABELS = ["", "Weak", "Okay", "Good", "Strong"];
 
 /** Pasang meter di bawah input. Mengembalikan elemen meter. */
 export function attachMeter(input) {

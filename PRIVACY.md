@@ -1,32 +1,32 @@
-# Kebijakan Privasi Browser Lock
+# Browser Lock Privacy Policy
 
-*Terakhir diperbarui: 18 Oktober 2026*
+*Last updated: October 18, 2026*
 
-**Browser Lock tidak mengumpulkan, mengirim, atau membagikan data apa pun.**
+**Browser Lock does not collect, send, or share any data.**
 
-## Data yang disimpan, hanya di komputer lo
-Disimpan lewat `chrome.storage` di profil Chrome lo dan tidak pernah meninggalkan komputer:
-- Hash password (PBKDF2-SHA256, salt acak). Password aslinya tidak pernah disimpan.
-- Hash kode pemulihan.
-- Pengaturan: durasi kunci otomatis, daftar situs yang dikunci per situs, bahasa, opsi tombol panik.
-- Catatan percobaan gagal (waktu dan jenis, maksimal 50 entri). Tanpa foto, tanpa lokasi.
-- Kunci publik Touch ID kalau lo mengaktifkannya. Sidik jari tidak pernah diakses ekstensi, itu urusan sistem operasi.
+## Data stored, only on your computer
+Stored through `chrome.storage` in your Chrome profile; it never leaves your computer:
+- A password hash (PBKDF2-SHA256, random salt). The password itself is never stored.
+- A recovery code hash.
+- Settings: auto-lock duration, the list of per-site locks, language, panic button options.
+- A failed-attempt log (time and type, up to 50 entries). No photos, no location.
+- The Touch ID public key, if you turn it on. The extension never accesses your fingerprint; that is the operating system's job.
 
-## Data yang tidak dikumpulkan
-Tidak ada analitik, pelacakan, iklan, akun, atau permintaan jaringan. Ekstensi tidak membaca isi halaman web, riwayat, atau formulir.
+## Data not collected
+No analytics, tracking, ads, accounts, or network requests. The extension doesn't read web page content, history, or forms.
 
-## Izin dan alasannya
-| Izin | Alasan |
+## Permissions and why
+| Permission | Reason |
 |---|---|
-| `storage` | Menyimpan hash password dan pengaturan di komputer lo. |
-| `idle` | Mengunci otomatis saat komputer tidak dipakai atau layar dikunci. |
-| `tabs` | Mengetahui tab mana yang harus ditutup, dan mengalihkan tab `chrome://` ke layar kunci. |
-| `alarms` | Memeriksa tiap menit apakah izin buka per situs sudah kedaluwarsa. |
-| `offscreen`, `clipboardWrite` | Mengosongkan clipboard saat tombol panik ditekan. |
-| Akses ke semua situs (`<all_urls>`) | Menampilkan layar kunci di atas halaman web mana pun. Skrip hanya menyembunyikan halaman dan menampilkan layar kunci, tidak membaca atau mengubah isinya. |
+| `storage` | Store the password hash and settings on your computer. |
+| `idle` | Auto-lock when the computer is idle or the screen locks. |
+| `tabs` | Know which tabs to cover, and redirect `chrome://` tabs to the lock screen. |
+| `alarms` | Check every minute whether per-site unlock permissions have expired. |
+| `offscreen`, `clipboardWrite` | Clear the clipboard when the panic button is pressed. |
+| Access to all sites (`<all_urls>`) | Show the lock screen over any web page. The script only hides the page and shows the lock screen; it doesn't read or change content. |
 
-## Kontak
-Pertanyaan: <https://faquloh.site/>
+## Contact
+Questions: <https://faquloh.site/>
 
-## Perubahan
-Kalau kebijakan ini berubah, tanggal di atas diperbarui dan perubahan dicatat di repositori.
+## Changes
+If this policy changes, the date above is updated and the change is recorded in the repository.

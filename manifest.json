@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Browser Lock",
   "version": "1.0",
-  "description": "Kunci Chrome dengan password atau Touch ID. Semua tab tertutup sampai terbuka. Tanpa akun, tanpa internet, data cuma di komputer lo.",
+  "description": "Lock Chrome with a password or Touch ID. Every tab stays covered until you unlock. No account, no internet, data stays on your computer.",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
@@ -46,21 +46,21 @@
         "default": "Ctrl+Shift+L",
         "mac": "Command+Shift+L"
       },
-      "description": "Kunci browser sekarang"
+      "description": "Lock the browser now"
     },
     "panic": {
       "suggested_key": {
         "default": "Ctrl+Shift+K",
         "mac": "Command+Shift+K"
       },
-      "description": "Tombol panik: kunci, kecilkan jendela, kosongkan clipboard"
+      "description": "Panic button: lock, minimize windows, clear clipboard"
     },
     "lock-tab": {
       "suggested_key": {
         "default": "Ctrl+Shift+Y",
         "mac": "Command+Shift+Y"
       },
-      "description": "Kunci tab ini saja (tab lain tetap terbuka)"
+      "description": "Lock this tab only (other tabs stay open)"
     }
   },
   "icons": {

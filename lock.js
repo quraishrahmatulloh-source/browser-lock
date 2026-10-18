@@ -12,7 +12,7 @@ const tabScope = params.get("tab") ? Number(params.get("tab")) : null;
 const tabLock = params.get("tabLock") === "1";                  // dibenamkan di tab yang dikunci sendiri (id tab diketahui oleh service worker)
 const embed = mode === "embed";                                  // di dalam iframe di atas halaman yang terkunci     // ?tab=ID: buka satu tab yang dikunci sendiri
 const send = (msg) => chrome.runtime.sendMessage(msg);
-let T = makeT("id"), state = null, timer = null;
+let T = makeT("en"), state = null, timer = null;
 
 document.body.dataset.mode = mode;
 if (embed) document.documentElement.classList.add("embed");
